@@ -39,6 +39,7 @@ Update on every ingest, every filed query, every session end, every decision.
 ## Sessions
 - [sessions/S1-grounding-decisions.md](sessions/S1-grounding-decisions.md) — name=tern, repo=A1, six diffs, HTML artifact contract.
 - [sessions/S2-grounding-execution.md](sessions/S2-grounding-execution.md) — clones + wiki reads + synthesis + architecture.html.
+- [sessions/S3-skeleton-green-floor.md](sessions/S3-skeleton-green-floor.md) — pyproject + Typer CLI + 3 smoke tests + first commit.
 
 ---
 

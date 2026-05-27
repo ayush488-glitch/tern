@@ -20,8 +20,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 |---|---|---|---|
 | | S1 grounding decisions | ✅ done | 2026-05-27 |
 | | S2 grounding execution + architecture.html | ✅ done | 2026-05-27 |
-| **▶** | **S3 repo skeleton + first green commit** | **next** | — |
-| | S4 Phase 0 — JTBD + scope | — | — |
+| | S3 repo skeleton + first green commit | ✅ done | 2026-05-27 |
+| **▶** | **S4 Phase 0 — JTBD + scope** | **next** | — |
 | | S5 Phase 1 — architecture sub-picks (4 ADRs) | — | — |
 | | S6 M11 observability skeleton | — | — |
 | | S7 M4 canonical messages + first adapter | — | — |
