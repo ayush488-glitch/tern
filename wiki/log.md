@@ -53,3 +53,6 @@ StreamingProviderAdapter Protocol, FakeStreamingAdapter test double, +4 tests.
 Gates: pytest 96/96, ruff clean, mypy --strict clean (27 src), live Bedrock
 streaming smoke green. Touched: 12 files.
 ## [2026-05-28] session-end | S10 session graph (D3) — store + log/resume/branch/replay, 108/108 green
+
+## [2026-05-28] session-end | S11 skills runtime (D2) — disk-discovered SKILL.md, catalog digest + per-turn active block, 125/125 green
+## [2026-05-28] decision | ADR-0006 skills runtime: project shadows user, keyword + explicit retrieval, cap 3 active

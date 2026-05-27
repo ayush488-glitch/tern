@@ -20,6 +20,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [decisions/adr-0003-tool-surface.md](decisions/adr-0003-tool-surface.md) — Tool Protocol, double-gated permissions, native+browser+MCP unification (S5, accepted).
 - [decisions/adr-0004-provider-layer.md](decisions/adr-0004-provider-layer.md) — canonical messages, ProviderAdapter, cost router v0 / D1 (S5, accepted).
 - [decisions/adr-0005-session-state.md](decisions/adr-0005-session-state.md) — object store, refs, branches, replay / D3 (S5, accepted).
+- [decisions/adr-0006-skills-runtime.md](decisions/adr-0006-skills-runtime.md) — disk SKILL.md, catalog digest + per-turn active block, keyword + explicit retrieval / D2 (S11, accepted).
 
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
@@ -56,6 +57,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S9-m5-tools-m2-chat-ui.md](sessions/S9-m5-tools-m2-chat-ui.md) — M5 tools (read_file, edit_block) + M2 Textual chat UI, double permission gate, 92/92 green.
 - [sessions/S9.5-inline-repl-streaming.md](sessions/S9.5-inline-repl-streaming.md) — Ripped Textual; built inline REPL on prompt_toolkit + rich.live; day-1 Bedrock streaming; diff-up-front edit_block prompt. 96/96 green.
 - [sessions/S10-session-graph.md](sessions/S10-session-graph.md) — D3 landed: content-addressed turn-object store + session refs + transcripts; `tern log/resume/branch/replay`; chat `--resume`. 108/108 green.
+- [sessions/S11-skills-runtime.md](sessions/S11-skills-runtime.md) — D2 landed: disk SKILL.md catalog, per-turn keyword + explicit-mention retrieval, `tern skills` CLI, live Bedrock smoke green. 125/125 green.
 
 ---
 

@@ -324,12 +324,37 @@ def run_chat(
         )
         update_session_head(session_id, parent_sha, cwd=repo)
         adapter = select_adapter(TurnPurpose.CODE)
+
+        # ---- D2 / S11: skills runtime ----------------------------------
+        from tern.skills import build_system_prompt, load_skills, select_active
+
+        skills = load_skills(repo)
+        active = select_active(user_text, skills)
+        sys_text = build_system_prompt(skills, active)
+        sys_prefix: tuple[CanonicalMessage, ...] = (
+            (
+                CanonicalMessage(
+                    role="system",
+                    content=(TextBlock(text=sys_text),),
+                    metadata=Metadata(
+                        schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
+                    ),
+                ),
+            )
+            if sys_text
+            else ()
+        )
+        if active:
+            console.print(
+                f"[dim]· skills active: {', '.join(s.name for s in active)}[/dim]"
+            )
+
         turn = Turn(
             id=uuid.uuid4().hex[:12],
             session_id=session_id,
             idx=turn_idx,
             purpose=TurnPurpose.CODE,
-            messages=tuple(history),
+            messages=(*sys_prefix, *history),
             mode=mode,
             registry=registry,
             gate=gate,

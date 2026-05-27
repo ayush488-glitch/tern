@@ -39,6 +39,11 @@ from tern.obs.store import (
     walk_chain,
     write_branch,
 )
+from tern.skills.catalog import (
+    build_system_prompt,
+    load_skills,
+)
+from tern.skills.retrieval import select_active
 
 app = typer.Typer(
     name="tern",
@@ -140,6 +145,20 @@ def run(
     turn_purpose = _PURPOSE_ALIASES[purpose_key]
     adapter = select_adapter(turn_purpose)
 
+    # ---- D2 / S11: skills runtime --------------------------------------
+    skills = load_skills(cwd)
+    active = select_active(prompt, skills)
+    sys_text = build_system_prompt(skills, active)
+    sys_msg = (
+        CanonicalMessage(
+            role="system",
+            content=(TextBlock(text=sys_text),),
+            metadata=Metadata(
+                schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
+            ),
+        ),
+    ) if sys_text else ()
+
     session_id = uuid.uuid4().hex[:12]
     turn = Turn(
         id=uuid.uuid4().hex[:12],
@@ -147,6 +166,7 @@ def run(
         idx=0,
         purpose=turn_purpose,
         messages=(
+            *sys_msg,
             CanonicalMessage(
                 role="user",
                 content=(TextBlock(text=prompt),),
@@ -335,6 +355,24 @@ def resume(
     history.append(user_msg)
     next_idx = (chain[-1].turn_idx or 0) + 1
 
+    # ---- D2 / S11: skills runtime --------------------------------------
+    skills = load_skills(cwd)
+    active = select_active(prompt, skills)
+    sys_text = build_system_prompt(skills, active)
+    sys_prefix: tuple[CanonicalMessage, ...] = (
+        (
+            CanonicalMessage(
+                role="system",
+                content=(TextBlock(text=sys_text),),
+                metadata=Metadata(
+                    schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
+                ),
+            ),
+        )
+        if sys_text
+        else ()
+    )
+
     _, parent_sha = persist_message(
         user_msg, session_id=sid, turn_idx=next_idx, parent=head,
         cwd=cwd, routing_purpose=last_purpose.value,
@@ -346,7 +384,7 @@ def resume(
         session_id=sid,
         idx=next_idx,
         purpose=last_purpose,
-        messages=tuple(history),
+        messages=(*sys_prefix, *history),
         max_tokens=max_tokens,
     )
     sink = NDJSONSpanSink(session_id=sid, cwd=cwd)
@@ -460,6 +498,64 @@ def replay(
             console.print(f"  [red]✗[/red] turn {idx}: child.parent={got[:12]} expected {expected[:12]}")
         raise typer.Exit(code=1)
     console.print("[green]✓ hash chain consistent[/green]")
+
+
+# ---------------------------------------------------------------------------
+# S11 / D2 — skills CLI
+# ---------------------------------------------------------------------------
+
+skills_app = typer.Typer(
+    name="skills",
+    help="Inspect the skills catalog discovered on disk.",
+    no_args_is_help=False,
+    invoke_without_command=True,
+)
+app.add_typer(skills_app, name="skills")
+
+
+@skills_app.callback()
+def _skills_default(
+    ctx: typer.Context,
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+) -> None:
+    """`tern skills` (no subcommand) lists all discovered skills."""
+    if ctx.invoked_subcommand is not None:
+        return
+    items = load_skills(cwd)
+    console = Console()
+    if not items:
+        console.print("[dim]no skills discovered[/dim]")
+        console.print(
+            "[dim]drop SKILL.md files into ~/.tern/skills/<name>/ "
+            "or .tern/skills/<name>/[/dim]"
+        )
+        return
+    for s in items:
+        src = "[cyan]project[/cyan]" if s.source == "project" else "[magenta]user[/magenta]"
+        console.print(f"  [yellow]{s.name:<24}[/yellow] {src}  {s.description}")
+
+
+@skills_app.command("show")
+def skills_show(
+    name: str = typer.Argument(..., help="Skill name."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+) -> None:
+    """Print the full body of one skill."""
+    items = load_skills(cwd)
+    match = next((s for s in items if s.name == name), None)
+    console = Console()
+    if match is None:
+        typer.secho(f"no skill named {name!r}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    console.print(f"[bold]{match.name}[/bold]  [dim]({match.source})[/dim]")
+    console.print(f"[dim]{match.path}[/dim]")
+    console.print(f"\n[italic]{match.description}[/italic]")
+    if match.when_to_use:
+        console.print(f"[dim]when: {match.when_to_use}[/dim]")
+    if match.allowed_tools:
+        console.print(f"[dim]tools: {', '.join(match.allowed_tools)}[/dim]")
+    console.print()
+    console.print(match.body)
 
 
 @app.command()
