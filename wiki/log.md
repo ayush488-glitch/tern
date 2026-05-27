@@ -56,3 +56,6 @@ streaming smoke green. Touched: 12 files.
 
 ## [2026-05-28] session-end | S11 skills runtime (D2) — disk-discovered SKILL.md, catalog digest + per-turn active block, 125/125 green
 ## [2026-05-28] decision | ADR-0006 skills runtime: project shadows user, keyword + explicit retrieval, cap 3 active
+
+## [2026-05-28] decision | ADR-0007 live HTML notes artifact (D4)
+## [2026-05-28] session-end | S12 live HTML notes artifact (D4) — 137/137 green, mypy strict ✅

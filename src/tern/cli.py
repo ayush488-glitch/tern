@@ -218,6 +218,15 @@ def run(
         for block in response_msg.content:
             if isinstance(block, TextBlock):
                 typer.echo(block.text)
+
+    # D4 / S12: best-effort live HTML notes artifact refresh after the turn.
+    try:
+        from tern.notes import render_html
+
+        out = render_html(session_id, cwd=cwd)
+        typer.secho(f"notes: {out}", fg=typer.colors.BRIGHT_BLACK, err=True)
+    except Exception as exc:
+        typer.secho(f"notes render skipped: {exc}", fg=typer.colors.YELLOW, err=True)
     typer.secho(
         f"\nsession {session_id}  ·  cost ${rec.total_cost_usd():.4f}",
         fg=typer.colors.BRIGHT_BLACK,
@@ -602,3 +611,33 @@ def chat(
     if resume:
         resolved_resume = _resolve_session(resume, cwd)
     run_chat(mode=mode, repo_root=cwd, resume_session=resolved_resume)
+
+
+@app.command(name="notes")
+def notes_cmd(
+    session: str = typer.Argument(
+        "", help="Session id or prefix (default: most recent)."
+    ),
+    cwd: Path | None = typer.Option(
+        None, "--cwd", help="Project dir (default: current)."
+    ),
+    out: Path | None = typer.Option(
+        None,
+        "--out",
+        "-o",
+        help="Override output path (default: <project>/notes/<session>.html).",
+    ),
+    open_after: bool = typer.Option(
+        False, "--open", help="Open the rendered file in the OS default browser."
+    ),
+) -> None:
+    """Render the live HTML notes artifact for a session (D4 / S12)."""
+    from tern.notes import render_html
+
+    sid = _resolve_session(session, cwd)
+    path = render_html(sid, cwd=cwd, out_path=out)
+    typer.echo(str(path))
+    if open_after:
+        import webbrowser
+
+        webbrowser.open(path.as_uri())

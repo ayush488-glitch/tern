@@ -58,7 +58,7 @@ from tern.tools import (
     Tool,
     ToolContext,
 )
-from tern.tools.native import EditBlockTool, ReadFileTool
+from tern.tools.native import EditBlockTool, NotesAppendTool, ReadFileTool
 from tern.tools.permissions import Prompter
 
 # ---------------------------------------------------------------------------
@@ -255,7 +255,7 @@ def run_chat(
     console = Console()
     console.print(_HELP)
 
-    registry = Registry([ReadFileTool(), EditBlockTool()])
+    registry = Registry([ReadFileTool(), EditBlockTool(), NotesAppendTool()])
     gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
 
     # ---- D3 / S10: optionally resume a prior session, else fresh -------
@@ -398,6 +398,15 @@ def run_chat(
             )
             update_session_head(session_id, parent_sha, cwd=repo)
         turn_idx += 1
+
+        # ---- D4 / S12: refresh the live HTML notes artifact after each turn.
+        # Best-effort; a render failure should never break the chat.
+        try:
+            from tern.notes import render_html
+
+            render_html(session_id, cwd=repo)
+        except Exception as exc:
+            console.print(f"[dim red]· notes render failed: {exc}[/dim red]")
 
     console.print(
         f"[dim]session {session_id}  ·  cost ${rec.total_cost_usd():.4f}[/dim]"

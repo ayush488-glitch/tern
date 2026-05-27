@@ -8,6 +8,7 @@ import gymnastics.
 from __future__ import annotations
 
 from tern.tools.native.edit_block import EditBlockTool
+from tern.tools.native.notes_append import NotesAppendTool
 from tern.tools.native.read_file import ReadFileTool
 
-__all__ = ["EditBlockTool", "ReadFileTool"]
+__all__ = ["EditBlockTool", "NotesAppendTool", "ReadFileTool"]
