@@ -32,3 +32,10 @@ AGENTS.md schema, wiki/index.md, wiki/log.md, wiki/roadmap/14-session-plan.md, w
 
 ## [2026-05-27] session-end | S6 m11-observability
 Built M11 in one session. Eight source files (`core/events.py` + `obs/{paths,span,sink,recorder,render,replay}.py`) + `tests/test_obs.py` (5 tests). CLI gained `tern spans <session>`. Four gates green: pytest 8/8, ruff clean, mypy strict clean (11 files), `tern --version` 0.0.1. Decisions: span pair-matching uses `call_id` else opener-kind; singleton events become same-message closed-spans; `TERN_HOME` env override; ndjson sink fsyncs per write. Deferred: cost aggregation (S10), streaming events (S15), rebuild-on-corruption (S10). Touched: 4 wiki pages (concepts/m11-observability.md NEW, sessions/S6-m11-observability.md NEW, index.md, roadmap/14-session-plan.md). Next: S7 M4 canonical messages + Bedrock-Anthropic adapter.
+
+## [2026-05-27] session-end | S7 M4 canonical messages + Bedrock-Anthropic adapter
+TDD two cycles (canonical, adapter). 39/39 pytest, ruff clean, mypy --strict clean.
+New: src/tern/core/canonical.py, src/tern/core/provider.py, src/tern/adapters/{__init__,bedrock_anthropic}.py.
+Tests: tests/test_canonical.py (16), tests/test_bedrock_adapter.py (15).
+Deps: +boto3>=1.34, dev +boto3-stubs[bedrock-runtime]>=1.34.
+Wiki: +concepts/m4-canonical-messages.md, +sessions/S7-m4-canonical-messages.md, index+roadmap updated. Touched: 6 wiki files.

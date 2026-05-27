@@ -24,8 +24,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S4 Phase 0 — JTBD + scope (ADR-0001) | ✅ done | 2026-05-27 |
 | | S5 Phase 1 — architecture sub-picks (4 ADRs) | ✅ done | 2026-05-27 |
 | | S6 M11 observability skeleton | ✅ done | 2026-05-27 |
-| **▶** | **S7 M4 canonical messages + first adapter** | **next** | — |
-| | S8 M1 + M0 turn loop + CLI (one-shot Bedrock) | — | — |
+| | S7 M4 canonical messages + first adapter | ✅ done | 2026-05-27 |
+| **▶** | **S8 M1 + M0 turn loop + CLI (one-shot Bedrock)** | **next** | — |
 | | S9 M5 + M2 slice (two tools + textual TUI) — 🎉 demo-visible | — | — |
 | | S10 M7 session, replay, branch (D3) | — | — |
 | | S11 M6 skills runtime (D2) | — | — |
