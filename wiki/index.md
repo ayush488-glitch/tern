@@ -24,6 +24,7 @@ Update on every ingest, every filed query, every session end, every decision.
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
 - [concepts/14-modules.md](concepts/14-modules.md) — M0–M14, what each module owns.
+- [concepts/m11-observability.md](concepts/m11-observability.md) — events, span pairing, ndjson sink, replay (S6).
 
 ## Entities
 - [entities/tern.md](entities/tern.md) — the project itself.
@@ -46,6 +47,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S3-skeleton-green-floor.md](sessions/S3-skeleton-green-floor.md) — pyproject + Typer CLI + 3 smoke tests + first commit.
 - [sessions/S4-phase-0-jtbd.md](sessions/S4-phase-0-jtbd.md) — ADR-0001 anchor (JTBD, scope, success criteria, anti-scope).
 - [sessions/S5-phase-1-adrs.md](sessions/S5-phase-1-adrs.md) — ADRs 0002–0005, design locked end-to-end.
+- [sessions/S6-m11-observability.md](sessions/S6-m11-observability.md) — events, spans, ndjson sink, `tern spans` CLI, 8 tests green.
 
 ---
 

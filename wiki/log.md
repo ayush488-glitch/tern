@@ -29,3 +29,6 @@ pyproject.toml + src/tern/{__init__,cli}.py + tests/test_smoke.py. Four gates gr
 
 ## [2026-05-27] milestone | LLM Wiki bootstrapped
 AGENTS.md schema, wiki/index.md, wiki/log.md, wiki/roadmap/14-session-plan.md, wiki/concepts/, wiki/entities/, wiki/sources/, wiki/sessions/ scaffolded. Pattern: ingest / query / lint / session-handoff. This wiki is now THE persistent memory across sessions.
+
+## [2026-05-27] session-end | S6 m11-observability
+Built M11 in one session. Eight source files (`core/events.py` + `obs/{paths,span,sink,recorder,render,replay}.py`) + `tests/test_obs.py` (5 tests). CLI gained `tern spans <session>`. Four gates green: pytest 8/8, ruff clean, mypy strict clean (11 files), `tern --version` 0.0.1. Decisions: span pair-matching uses `call_id` else opener-kind; singleton events become same-message closed-spans; `TERN_HOME` env override; ndjson sink fsyncs per write. Deferred: cost aggregation (S10), streaming events (S15), rebuild-on-corruption (S10). Touched: 4 wiki pages (concepts/m11-observability.md NEW, sessions/S6-m11-observability.md NEW, index.md, roadmap/14-session-plan.md). Next: S7 M4 canonical messages + Bedrock-Anthropic adapter.

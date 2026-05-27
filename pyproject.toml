@@ -23,8 +23,9 @@ classifiers = [
     "Topic :: Software Development",
 ]
 dependencies = [
-    "typer>=0.12",
-    "rich>=13.7",
+  "typer>=0.12",
+  "rich>=13.7",
+  "pydantic>=2.7",
 ]
 
 [project.optional-dependencies]
@@ -48,11 +49,12 @@ packages = ["src/tern"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
-ignore = ["E501"]  # line-length handled by formatter
+# E501: line-length handled by formatter.
+# B008: Typer relies on function-call defaults (typer.Option / typer.Argument).
+ignore = ["E501", "B008"]
 
 [tool.ruff.format]
 quote-style = "double"
