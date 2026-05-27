@@ -140,8 +140,10 @@ def run(
         EditBlockTool,
         GlobTool,
         GrepTool,
+        MemoryTool,
         NotesAppendTool,
         ReadFileTool,
+        SkillManageTool,
         WebFetchTool,
         WriteFileTool,
     )
@@ -184,6 +186,8 @@ def run(
             BashTool(),
             NotesAppendTool(),
             WebFetchTool(),
+            MemoryTool(),
+            SkillManageTool(),
         ]
     )
     gate = PermissionGate()  # default deny on destructive in default mode

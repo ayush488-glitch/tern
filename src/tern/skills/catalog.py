@@ -203,10 +203,14 @@ def build_system_prompt(
     active: tuple[Skill, ...],
     *,
     base: str = "",
+    include_memory: bool = True,
 ) -> str:
-    """Compose: base preamble + catalog digest + active bodies.
+    """Compose: base preamble + catalog digest + active bodies + memory banners.
 
-    Empty parts are dropped so a no-skills run stays empty (no-op preamble).
+    Empty parts are dropped so a no-skills + no-memory run stays empty.
+
+    `include_memory=True` (default) appends MEMORY.md / USER.md banners from
+    `tern.memory`. Tests that don't want memory bleed-through can opt out.
     """
     chunks = []
     if base.strip():
@@ -217,4 +221,11 @@ def build_system_prompt(
     block = render_active_block(active)
     if block:
         chunks.append(block)
+    if include_memory:
+        # local import to avoid a cycle if memory ever imports skills
+        from tern.memory.store import render_all_banners
+
+        banners = render_all_banners()
+        if banners:
+            chunks.append(banners)
     return "\n\n".join(chunks)

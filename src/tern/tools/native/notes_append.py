@@ -35,7 +35,12 @@ class NotesAppendTool:
         "Append a free-form note to the live HTML artifact for this session. "
         "Use sparingly: a note is something a future reader (or you on replay) "
         "will want highlighted. Examples: a non-obvious decision, a pitfall hit, "
-        "a TODO worth surfacing."
+        "a TODO worth surfacing.\n\n"
+        "IMPORTANT: invoke this as a STRUCTURED TOOL CALL with JSON arguments — "
+        '`{\"text\": \"...\", \"tags\": [\"...\"]}`. Do NOT emit literal '
+        "<notes_append>...</notes_append> XML in your reply text; that goes "
+        "straight to the user as prose and the note is lost. The tool only "
+        "fires when you select it from the tool list."
     )
     args_model: type[BaseModel] = NotesAppendArgs
     annotations = ToolAnnotations(

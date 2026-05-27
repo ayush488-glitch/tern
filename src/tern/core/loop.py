@@ -34,6 +34,7 @@ from tern.core.canonical import (
     TextBlock,
     ToolCallBlock,
     ToolResultBlock,
+    lift_pseudo_xml_tool_calls,
 )
 from tern.core.events import (
     ApprovalDenied,
@@ -123,11 +124,17 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
             stop_reason=response.stop_reason or "end_turn",
         )
 
-        # Append the assistant message to the rolling log.
-        messages = (*messages, response.message)
+        # Rescue: some models emit `<tool_name>...</tool_name>` text instead
+        # of a structured tool_use block. Lift those into ToolCallBlocks so
+        # the loop can fire them. Idempotent + scoped to registered tools.
+        allowed = frozenset(t.name for t in registry.visible_to_model(mode=turn.mode))
+        rescued = lift_pseudo_xml_tool_calls(response.message, allowed)
+
+        # Append the (possibly rewritten) assistant message to the rolling log.
+        messages = (*messages, rescued)
 
         tool_calls = tuple(
-            b for b in response.message.content if isinstance(b, ToolCallBlock)
+            b for b in rescued.content if isinstance(b, ToolCallBlock)
         )
         stop_reason = response.stop_reason or "end_turn"
 

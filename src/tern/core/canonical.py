@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re as _re
+import uuid as _uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -212,4 +214,84 @@ def from_json(blob: str) -> CanonicalMessage:
         role=raw["role"],
         content=blocks,
         metadata=_metadata_from_dict(raw["metadata"]),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pseudo-XML tool-call rescue (S15 — notes_append fix)
+#
+# Some models (Sonnet observed in the wild) ignore the structured tool_use
+# protocol and emit literal `<tool_name>...</tool_name>` text instead. The
+# loop never sees a ToolCallBlock and the tool is silently skipped. This
+# helper rewrites such an assistant message: any text block matching the
+# pattern is replaced with a synthetic ToolCallBlock so the loop fires the
+# tool. Best-effort, idempotent — if the pattern doesn't match, the message
+# is returned unchanged.
+# ---------------------------------------------------------------------------
+
+
+_PSEUDO_XML_RE = _re.compile(
+    r"<\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*>(.*?)<\s*/\s*\1\s*>",
+    _re.DOTALL,
+)
+
+
+def lift_pseudo_xml_tool_calls(
+    msg: CanonicalMessage, allowed_names: frozenset[str]
+) -> CanonicalMessage:
+    """Promote `<tool>text</tool>` text-blocks into ToolCallBlocks.
+
+    Only names in `allowed_names` are lifted (the registry's tool list), so
+    real prose containing < and > stays untouched. The first inner-text
+    capture becomes a single-arg payload; tools that want this rescue must
+    accept either a `text` arg (notes_append) or unwrap accordingly. For
+    other tools we fall back to a positional dict whose only key is `text`,
+    which Pydantic will reject — and the loop's existing ValidationError
+    path will surface the failure cleanly to the model on the next step.
+    """
+    if not allowed_names:
+        return msg
+    new_blocks: list[ContentBlock] = []
+    changed = False
+    for block in msg.content:
+        if not isinstance(block, TextBlock):
+            new_blocks.append(block)
+            continue
+        text = block.text
+        # cheap pre-check: any candidate at all?
+        if "<" not in text or ">" not in text:
+            new_blocks.append(block)
+            continue
+        # find every match; if one of them is an allowed tool name, lift it
+        cursor = 0
+        emitted_any = False
+        for m in _PSEUDO_XML_RE.finditer(text):
+            tool_name = m.group(1)
+            if tool_name not in allowed_names:
+                continue
+            inner = m.group(2).strip()
+            # leading prose (before this match) survives as a TextBlock
+            prefix = text[cursor : m.start()].strip()
+            if prefix:
+                new_blocks.append(TextBlock(text=prefix))
+            # synthesize a ToolCallBlock with `text` arg (matches notes_append)
+            call_id = f"rescue_{_uuid.uuid4().hex[:10]}"
+            new_blocks.append(
+                ToolCallBlock(id=call_id, name=tool_name, args={"text": inner})
+            )
+            cursor = m.end()
+            emitted_any = True
+            changed = True
+        if emitted_any:
+            tail = text[cursor:].strip()
+            if tail:
+                new_blocks.append(TextBlock(text=tail))
+        else:
+            new_blocks.append(block)
+    if not changed:
+        return msg
+    return CanonicalMessage(
+        role=msg.role,
+        content=tuple(new_blocks),
+        metadata=msg.metadata,
     )

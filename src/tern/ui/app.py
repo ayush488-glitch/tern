@@ -63,8 +63,10 @@ from tern.tools.native import (
     EditBlockTool,
     GlobTool,
     GrepTool,
+    MemoryTool,
     NotesAppendTool,
     ReadFileTool,
+    SkillManageTool,
     WebFetchTool,
     WriteFileTool,
 )
@@ -273,6 +275,8 @@ def run_chat(
         BashTool(),
         NotesAppendTool(),
         WebFetchTool(),
+        MemoryTool(),
+        SkillManageTool(),
     ])
     gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
 
