@@ -26,8 +26,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S6 M11 observability skeleton | ✅ done | 2026-05-27 |
 | | S7 M4 canonical messages + first adapter | ✅ done | 2026-05-27 |
 | | S8 M1 + M0 turn loop + CLI (one-shot Bedrock) | ✅ done | 2026-05-27 |
-| **▶** | **S9 M5 + M2 slice (two tools + textual TUI) — 🎉 demo-visible** | **next** | — |
-| | S10 M7 session, replay, branch (D3) | — | — |
+| | S9 M5 + M2 slice (two tools + textual TUI) — 🎉 demo-visible | ✅ done | 2026-05-27 |
+| **▶** | **S10 M7 session, replay, branch (D3)** | **next** | — |
 | | S11 M6 skills runtime (D2) | — | — |
 | | S12 M8 live HTML notes artifact (D4) | — | — |
 | | S13 M9 + M10 browser + MCP (D5 + D6) | — | — |
