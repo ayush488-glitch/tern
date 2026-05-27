@@ -15,7 +15,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [roadmap/differentiators.md](roadmap/differentiators.md) — D1–D6, what each one means and where it lives.
 
 ## Decisions (ADRs)
-*(none filed yet — first ADRs land in S5)*
+- [decisions/adr-0001-jtbd-and-scope.md](decisions/adr-0001-jtbd-and-scope.md) — JTBD, audience, success criteria, anti-scope (S4, accepted).
 
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
@@ -40,6 +40,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S1-grounding-decisions.md](sessions/S1-grounding-decisions.md) — name=tern, repo=A1, six diffs, HTML artifact contract.
 - [sessions/S2-grounding-execution.md](sessions/S2-grounding-execution.md) — clones + wiki reads + synthesis + architecture.html.
 - [sessions/S3-skeleton-green-floor.md](sessions/S3-skeleton-green-floor.md) — pyproject + Typer CLI + 3 smoke tests + first commit.
+- [sessions/S4-phase-0-jtbd.md](sessions/S4-phase-0-jtbd.md) — ADR-0001 anchor (JTBD, scope, success criteria, anti-scope).
 
 ---
 

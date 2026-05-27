@@ -15,6 +15,9 @@ Originally proposed `antern`, user picked `tern`. Shorter, ergonomic CLI binary,
 ## [2026-05-27] rename | antern → tern
 Applied across .scratch/grounding/notes/* and docs/architecture.html. No residue.
 
+## [2026-05-27] decision | ADR-0001 jtbd-and-scope (S4 done)
+Open-source contributors day 1. Full surface: investigate + edit + browse + MCP. Terminal-native beautiful TUI (textual). NO cost ceiling — quality first, D1 routing optimizes downward only when provably cheap-suitable. Anti-scope: not autonomous, not SaaS, not chatbot, not IDE plugin, not free-tier-or-bust, not vendor-locked. Week 1/2/4 visibility milestones locked.
+
 ## [2026-05-27] milestone | S3 — repo skeleton, first green commit
 pyproject.toml + src/tern/{__init__,cli}.py + tests/test_smoke.py. Four gates green: `tern --version`, `pytest` (3/3), `ruff check`, `mypy --strict`. Commit 38878b6 landed on a clean tree (28 tracked files; `.scratch/` correctly excluded). Stack: typer + rich; py3.10 floor for breadth.
 
