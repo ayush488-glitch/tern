@@ -680,6 +680,12 @@
         <tr><td class="id">M12</td> <td class="nm">Reliability</td>          <td>Bedrock full-jitter retry/backoff (4 retries, 0.5s base, 8s cap) on throttle/5xx/timeout, wrapping both invoke_model paths. Tool-level: 200 KiB output cap with kill-on-overflow, 60s default timeout. <strong>S14 ✅</strong></td><td class="tag">—</td></tr>
         <tr><td class="id">M13</td> <td class="nm">Security</td>             <td>Sink-level secret redaction (ADR-0010): every span + notes-row scrubbed before write. Stable per-session placeholders <code>&lt;KIND_N&gt;</code>. Pattern catalogue ordered specific-first. Bash deny-list + permission gate; repo-rooted path validation on write_file. <strong>S14 ✅</strong></td><td class="tag">—</td></tr>
         <tr><td class="id">M14</td> <td class="nm">Slash commands &amp; keybinds</td><td>Declarative registries. Three command modes: local, local-ui, prompt-injected. Context-scoped keybindings.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M15</td> <td class="nm">Persistent memory</td>     <td>Hermes-shaped split: <code>~/.tern/memory/MEMORY.md</code> (procedural ~2.2KB) + <code>USER.md</code> (identity ~1.4KB). Loaded once per session, injected into the system prompt under banner headers. <code>memory</code> tool with add/replace/remove × memory|user. <strong>S15</strong></td><td class="tag">—</td></tr>
+        <tr><td class="id">M16</td> <td class="nm">Skill self-management</td> <td><code>skill_manage</code> tool: create/patch/edit/delete/write_file/remove_file. Scoped to <code>~/.tern/skills/</code> + <code>.tern/skills/</code> (project wins). Auto-skill reflection hook behind <code>--reflect-skills</code>, off by default. <strong>S15</strong></td><td class="tag">D2</td></tr>
+        <tr><td class="id">M17</td> <td class="nm">Model breadth</td>         <td>Sibling adapters: openai, bedrock_nova, bedrock_kimi, optional xai. D1 cost router populated from real $/1M tok numbers. Per-model tool serializers (Kimi needs OpenAI-style function wrapper on Bedrock). <strong>S16</strong></td><td class="tag">D1</td></tr>
+        <tr><td class="id">M18</td> <td class="nm">Vision input</td>          <td>ImageBlock wired through Bedrock-Anthropic + OpenAI adapters. <code>screenshot</code> tool (macOS <code>screencapture</code>, Linux <code>gnome-screenshot|grim</code>) returns ImageBlock. <strong>S17</strong></td><td class="tag">—</td></tr>
+        <tr><td class="id">M19</td> <td class="nm">Search + browser navigate</td><td><code>web_search</code> via Tavily. <code>web_fetch</code> promoted to Playwright (ADR-0008 swap). <code>browser_navigate</code>/<code>click</code>/<code>type</code>/<code>snapshot</code>/<code>vision</code> over one persistent Playwright context. Click + type are gated destructive. <strong>S18</strong></td><td class="tag">D5</td></tr>
+        <tr><td class="id">M20</td> <td class="nm">Self-curation</td>         <td><code>tern curate</code>: prune stale skills (no recent reads) + memory entries (&gt;30 days, never re-read). User approves before delete. <code>last_used_at</code> stamped on skill load. <strong>S19</strong></td><td class="tag">—</td></tr>
       </tbody>
     </table>
   </section>
@@ -747,9 +753,9 @@
       <div class="col">
         <h3>Phase 3 · hardening</h3>
         <ul>
-          <li><span class="k">7.</span> M12 + M13 formalized — timeouts, breakers, redaction, policy file</li>
-          <li><span class="k">8.</span> M14 polish — slash commands, keybindings, --print mode</li>
-          <li><span class="k">9.</span> Walkthrough authored from <code>.scratch/walkthrough-notes/</code>, captured during 1–8</li>
+          <li><span class="k">7.</span> M12 + M13 formalized — timeouts, breakers, redaction, policy file ✅ S14</li>
+          <li><span class="k">8.</span> Hermes-shaped breadth (S15–S19): persistent memory, skill self-mgmt, model breadth, vision, real search, browser navigate, self-curation</li>
+          <li><span class="k">9.</span> M14 polish + pipx + walkthrough authored from <code>.scratch/walkthrough-notes/</code>, captured during 1–8</li>
         </ul>
       </div>
     </div>

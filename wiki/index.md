@@ -33,6 +33,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [concepts/m4-canonical-messages.md](concepts/m4-canonical-messages.md) — frozen canonical types + first provider adapter, the lock installed (S7).
 - [concepts/m1-m0-turn-loop.md](concepts/m1-m0-turn-loop.md) — turn loop, CLI entry, D1 routing skeleton (S8).
 - [concepts/tool-protocol-and-permissions.md](concepts/tool-protocol-and-permissions.md) — Tool Protocol + double permission gate (S9).
+- [concepts/tern-vs-hermes-scope.md](concepts/tern-vs-hermes-scope.md) — why S15→S20 extends the ladder; why the foundation already supports it; notes_append pseudo-XML pitfall.
 
 ## Entities
 - [entities/tern.md](entities/tern.md) — the project itself.

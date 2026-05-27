@@ -1,5 +1,5 @@
 ---
-title: 14-session plan (S3 → S16)
+title: session plan (S3 → S20)
 type: roadmap
 created: 2026-05-27
 updated: 2026-05-27
@@ -33,8 +33,17 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S12 M8 live HTML notes artifact (D4) | ✅ done | 2026-05-28 |
 | | S13 M9 + M10 browser + MCP (D5 + D6) | ✅ done | 2026-05-28 |
 | | S14 M12 + M13 reliability + security + tool parity | ✅ done | 2026-05-28 |
-| **▶** | **S15 M14 polish + global install** | **next** | — |
-| | S16 walkthrough authored from notes | — | — |
+| **▶** | **S15 persistent memory + skill self-mgmt + notes-fix** | **next** | — |
+| | S16 model breadth (openai, nova, kimi, xai) + cost router populated | — | — |
+| | S17 vision (image input + screenshot tool) | — | — |
+| | S18 real search engine + browser_navigate/click/type | — | — |
+| | S19 self-curation (`tern curate`) | — | — |
+| | S20 M14 polish + pipx + walkthrough | — | — |
+
+**S15→S20 are an additive ladder** lifting Tern from "focused coding agent"
+toward Hermes-shaped breadth (memory · skills · models · vision · search ·
+browser · curation). The original S15 (polish) and S16 (walkthrough) collapsed
+into S20. Source: [tern-vs-hermes-scope](../concepts/tern-vs-hermes-scope.md).
 
 ---
 
@@ -107,22 +116,93 @@ sink-level secret redaction (ADR-0010) with stable per-session placeholders;
 Bedrock full-jitter retry/backoff on throttle/5xx/timeout. 210/210 tests green.
 ADRs: 0009 (tool parity), 0010 (redaction).
 
-### S15 · M14 polish + global install (~60 min)
-Slash commands + keybindings registries. `--print` mode. `pipx install tern` smoke test on a clean machine.
+---
 
-### S16 · walkthrough authored from notes (~120 min)
-Assemble `.scratch/walkthrough-notes/chNN-*.md` (captured during S6–S15) into the teaching repo. Same audience/contract as ai-native-swe-walkthrough.
+## Stage V — HERMES-SHAPED BREADTH (S15–S19)
+Goal: lift Tern from "focused coding agent" to a general-purpose CLI agent.
+Each session is additive; nothing in S3–S14 changes shape.
+
+### S15 · persistent memory + skill self-mgmt + notes-fix (~120 min)
+- **Memory** — Hermes-style split: `~/.tern/memory/MEMORY.md` (procedural notes,
+  ~2.2KB cap) + `~/.tern/memory/USER.md` (identity/preferences, ~1.4KB cap).
+  Loaded once per session, injected into the system prompt under
+  `══ MEMORY ══` / `══ USER PROFILE ══` banners, same shape as Hermes.
+  New tool `memory` with actions `add | replace | remove`, target `memory|user`,
+  per ADR-0003 protocol.
+- **`skill_manage` tool** — actions `create | patch | edit | delete |
+  write_file | remove_file`. Same surface Hermes uses, scoped to
+  `~/.tern/skills/<name>/SKILL.md` and `.tern/skills/...` (project wins).
+  Auto-skill-creation reflection hook lives behind a `--reflect-skills` flag,
+  off by default.
+- **`notes_append` fix** — root cause: model emits literal `<notes_append>...
+  </notes_append>` text instead of a tool_use block, so loop never fires.
+  Two-part fix: (a) tighten the tool's `description` to forbid pseudo-XML
+  and require structured tool-use; (b) add a fallback parser at the canonical
+  layer that lifts a top-level `<notes_append>text</notes_append>` text-block
+  into a synthetic ToolCallBlock (best-effort, idempotent). Either path lands
+  the JSONL row, which is the single source of truth `notes_render` reads.
+- **Self-curation v0** — append a one-liner to `MEMORY.md` after a successful
+  difficult turn (gated). Wires the loop that S19 expands into `tern curate`.
+
+### S16 · model breadth + cost router populated (~120 min)
+- New adapters under `src/tern/adapters/`: one file each for `openai`,
+  `bedrock_nova`, `bedrock_kimi`, optional `xai`. Per ADR-0004, a new model
+  is one new file; canonical layer doesn't change.
+- D1 cost router populated with real per-model `$/1M tok` numbers (lift from
+  `references/bedrock-models-ayush.md` + token-cost-master).
+- `tern config set default_model <id>` + `--model` per-turn override.
+- Pitfall: Kimi K2.5 on Bedrock needs OpenAI-style `{"type":"function",
+  "function":{...}}` tool wrapper (see token-cost-master pitfalls). Add a
+  per-model serializer in the bedrock_kimi adapter.
+
+### S17 · vision (image input + screenshot tool) (~90 min)
+- `ImageBlock` already exists in canonical (S7) — wire it through the
+  Bedrock-Anthropic adapter (base64 + media_type). Same plumbing for OpenAI.
+- New `screenshot` tool: macOS `screencapture -x -t png /tmp/...`,
+  Linux `gnome-screenshot|grim`. Returns an ImageBlock. Gated `destructive=False,
+  read_only=True`.
+- `tern run "what's on my screen"` works end-to-end on a vision-capable model.
+
+### S18 · real search + browser navigate/click/type (~150 min)
+- `web_search` tool — Tavily first (one HTTP call, returns markdown), Brave
+  optional. Key lives in `~/.tern/config.yaml` under `search.tavily_api_key`.
+- Promote `web_fetch` (S13) to a Playwright-backed `web_fetch` swap behind the
+  same name (ADR-0008 promised this). Caches in `~/.tern/cache/web/`.
+- New tools: `browser_navigate`, `browser_click`, `browser_type`,
+  `browser_snapshot`, `browser_vision` — all driving one persistent
+  Playwright context. Permission-gated: navigate/snapshot=non-destructive,
+  click/type=destructive (approval prompt).
+
+### S19 · self-curation `tern curate` (~75 min)
+- Standalone CLI command + scheduled-on-demand pass: review skills for
+  staleness (ctime > N days, no recent reads), prune memory entries >30 days
+  old that haven't been re-read, surface candidates the user approves before
+  delete. Same shape as Hermes curator.
+- Adds `last_used_at` to skill frontmatter on every load (S11 hook).
+
+---
+
+## Stage VI — POLISH + SHIP (S20)
+
+### S20 · M14 polish + pipx + walkthrough (~120 min)
+- Slash commands + keybindings registries. `--print` mode.
+- `pipx install tern` smoke test on a clean machine.
+- Assemble `.scratch/walkthrough-notes/chNN-*.md` (captured during S6–S19)
+  into the teaching repo. Same audience/contract as ai-native-swe-walkthrough.
 
 ---
 
 ## Demo-visibility checkpoints
 - **S9** — working coding agent (interactive, two tools, real Bedrock)
 - **S13** — full feature surface (replay, skills, notes, browser, MCP)
-- **S15** — installable
-- **S16** — teachable
+- **S14** — production-grade (tool parity + redaction + retry)
+- **S15** — Tern remembers you across sessions
+- **S17** — Tern can see
+- **S18** — Tern can browse the web like a human
+- **S20** — installable + teachable
 
 ## Calendar shape
-14 sessions × ~75 min average ≈ 17 focused hours. Realistically 3–6 weeks calendar time.
+20 sessions × ~80 min average ≈ 27 focused hours. Realistically 5–8 weeks calendar time.
 
 ## Reorder, don't remove
 This plan stays additive. If a session needs to swap places with another, reshuffle. Don't drop scope.
