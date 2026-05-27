@@ -16,6 +16,10 @@ Update on every ingest, every filed query, every session end, every decision.
 
 ## Decisions (ADRs)
 - [decisions/adr-0001-jtbd-and-scope.md](decisions/adr-0001-jtbd-and-scope.md) — JTBD, audience, success criteria, anti-scope (S4, accepted).
+- [decisions/adr-0002-runtime-shape.md](decisions/adr-0002-runtime-shape.md) — turn loop, async generator, state-replaced (S5, accepted).
+- [decisions/adr-0003-tool-surface.md](decisions/adr-0003-tool-surface.md) — Tool Protocol, double-gated permissions, native+browser+MCP unification (S5, accepted).
+- [decisions/adr-0004-provider-layer.md](decisions/adr-0004-provider-layer.md) — canonical messages, ProviderAdapter, cost router v0 / D1 (S5, accepted).
+- [decisions/adr-0005-session-state.md](decisions/adr-0005-session-state.md) — object store, refs, branches, replay / D3 (S5, accepted).
 
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
@@ -41,6 +45,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S2-grounding-execution.md](sessions/S2-grounding-execution.md) — clones + wiki reads + synthesis + architecture.html.
 - [sessions/S3-skeleton-green-floor.md](sessions/S3-skeleton-green-floor.md) — pyproject + Typer CLI + 3 smoke tests + first commit.
 - [sessions/S4-phase-0-jtbd.md](sessions/S4-phase-0-jtbd.md) — ADR-0001 anchor (JTBD, scope, success criteria, anti-scope).
+- [sessions/S5-phase-1-adrs.md](sessions/S5-phase-1-adrs.md) — ADRs 0002–0005, design locked end-to-end.
 
 ---
 
