@@ -16,11 +16,14 @@ The hard parts pinned by tests:
 
 from __future__ import annotations
 
+import asyncio
 import json
+import random
 from collections.abc import AsyncIterator
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError
 
 from tern.core.canonical import (
     SCHEMA_VERSION,
@@ -38,6 +41,32 @@ from tern.core.canonical import (
 
 # Anthropic Messages API version Bedrock expects in the request body.
 _ANTHROPIC_VERSION = "bedrock-2023-05-31"
+
+# Retry policy. Bedrock returns ThrottlingException / ServiceUnavailableException
+# under load; ModelStreamError on transient stream hiccups. Exponential backoff
+# with full jitter (AWS Architecture Blog "Exponential Backoff and Jitter").
+_RETRY_ERROR_CODES: frozenset[str] = frozenset({
+    "ThrottlingException",
+    "ServiceUnavailableException",
+    "ModelStreamErrorException",
+    "ModelTimeoutException",
+    "InternalServerException",
+})
+_MAX_RETRIES = 4
+_BASE_DELAY_S = 0.5
+_MAX_DELAY_S = 8.0
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, ClientError):
+        code = exc.response.get("Error", {}).get("Code", "")
+        return code in _RETRY_ERROR_CODES
+    return False
+
+
+async def _sleep_with_jitter(attempt: int) -> None:
+    cap = min(_MAX_DELAY_S, _BASE_DELAY_S * (2 ** attempt))
+    await asyncio.sleep(random.uniform(0, cap))
 
 
 # Streaming tuple shape: ("text", str) | ("tool_use_start", dict) |
@@ -170,12 +199,24 @@ class BedrockAnthropicAdapter:
         body["temperature"] = temperature
 
         client = boto3.client("bedrock-runtime", region_name=self.region)
-        result = client.invoke_model(
-            modelId=self.model_id,
-            body=json.dumps(body).encode("utf-8"),
-            accept="application/json",
-            contentType="application/json",
-        )
+        last_exc: BaseException | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                result = client.invoke_model(
+                    modelId=self.model_id,
+                    body=json.dumps(body).encode("utf-8"),
+                    accept="application/json",
+                    contentType="application/json",
+                )
+                break
+            except ClientError as exc:
+                last_exc = exc
+                if attempt >= _MAX_RETRIES or not _is_retryable(exc):
+                    raise
+                await _sleep_with_jitter(attempt)
+        else:  # pragma: no cover — unreachable; loop always breaks or raises
+            assert last_exc is not None
+            raise last_exc
         raw_bytes = result["body"].read()
         decoded = json.loads(raw_bytes.decode("utf-8"))
         response = self.from_wire(decoded)
@@ -210,12 +251,25 @@ class BedrockAnthropicAdapter:
         body["temperature"] = temperature
 
         client = boto3.client("bedrock-runtime", region_name=self.region)
-        result = client.invoke_model_with_response_stream(
-            modelId=self.model_id,
-            body=json.dumps(body).encode("utf-8"),
-            accept="application/json",
-            contentType="application/json",
-        )
+        last_exc: BaseException | None = None
+        result = None
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                result = client.invoke_model_with_response_stream(
+                    modelId=self.model_id,
+                    body=json.dumps(body).encode("utf-8"),
+                    accept="application/json",
+                    contentType="application/json",
+                )
+                break
+            except ClientError as exc:
+                last_exc = exc
+                if attempt >= _MAX_RETRIES or not _is_retryable(exc):
+                    raise
+                await _sleep_with_jitter(attempt)
+        if result is None:  # pragma: no cover
+            assert last_exc is not None
+            raise last_exc
 
         # Block accumulators: index → (type, payload-in-progress).
         text_blocks: dict[int, list[str]] = {}

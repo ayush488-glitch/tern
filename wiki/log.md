@@ -62,3 +62,11 @@ streaming smoke green. Touched: 12 files.
 
 ## [2026-05-28] decision | ADR-0008 browser-shaped tool slot + MCP client (D5 + D6)
 ## [2026-05-28] session-end | S13 browser + MCP — WebFetchTool v0 (urllib, text-only) + full MCP stdio bridge with .tern/mcp.json config; 159/159 green, ruff clean, mypy --strict ✅; live Bedrock end-to-end demo `tern run "fetch http://example.com..."` succeeded with real tool call.
+
+## [2026-05-28] decision | ADR-0009 core-loop tool surface parity (S14)
+Four new tools land behind the existing protocol/registry/gate: write_file, glob, grep, bash. Bash gets three-line defense (registry filter in safe mode + 8-pattern deny-list + permission gate per call), 200 KiB output cap, 60s default timeout. Grep prefers ripgrep, falls back to Python re with identical output shape.
+
+## [2026-05-28] decision | ADR-0010 secret redaction policy (S14, M13)
+Redaction lives at the sink (NDJSONSpanSink), not at every tool. Stable per-session placeholders (`<KIND_N>`) so debug correlation works without leaking the secret. Pattern catalogue: AWS access key, GitHub/OpenAI tokens, Bearer, kv password, PEM private-key blocks, high-entropy fallback. Always-on with `redact=False` test escape hatch.
+
+## [2026-05-28] session-end | S14 core-loop parity + redaction + Bedrock retry — 4 new tools (write_file/glob/grep/bash), obs/redact module wired into sink, full-jitter exponential retry on Bedrock throttle/5xx/timeout (4 retries, 0.5s base, 8s cap) wraps both invoke_model + invoke_model_with_response_stream. 210/210 green (+51 new tests), ruff clean, mypy --strict ✅, live Bedrock smoke ✅. Pitfalls logged: (a) `stdout.read(N)` doesn't block until N — needed chunked-loop reader; (b) `asyncio.TimeoutError` ≠ `TimeoutError` on py3.10; (c) bash regex group close.

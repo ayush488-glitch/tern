@@ -136,10 +136,14 @@ def run(
     from tern.tools import PermissionGate, Registry
     from tern.tools.mcp import MCPManager, load_mcp_config
     from tern.tools.native import (
+        BashTool,
         EditBlockTool,
+        GlobTool,
+        GrepTool,
         NotesAppendTool,
         ReadFileTool,
         WebFetchTool,
+        WriteFileTool,
     )
 
     purpose_key = purpose.lower()
@@ -171,7 +175,16 @@ def run(
     session_id = uuid.uuid4().hex[:12]
     repo = (cwd or Path.cwd()).resolve()
     registry = Registry(
-        [ReadFileTool(), EditBlockTool(), NotesAppendTool(), WebFetchTool()]
+        [
+            ReadFileTool(),
+            WriteFileTool(),
+            EditBlockTool(),
+            GlobTool(),
+            GrepTool(),
+            BashTool(),
+            NotesAppendTool(),
+            WebFetchTool(),
+        ]
     )
     gate = PermissionGate()  # default deny on destructive in default mode
 

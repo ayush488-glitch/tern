@@ -32,8 +32,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S11 M6 skills runtime (D2) | ✅ done | 2026-05-28 |
 | | S12 M8 live HTML notes artifact (D4) | ✅ done | 2026-05-28 |
 | | S13 M9 + M10 browser + MCP (D5 + D6) | ✅ done | 2026-05-28 |
-| **▶** | **S14 M12 + M13 reliability + security pass** | **next** | — |
-| | S15 M14 polish + global install | — | — |
+| | S14 M12 + M13 reliability + security + tool parity | ✅ done | 2026-05-28 |
+| **▶** | **S15 M14 polish + global install** | **next** | — |
 | | S16 walkthrough authored from notes | — | — |
 
 ---
@@ -101,8 +101,11 @@ browser-use as one tool. ClientSessionGroup for MCP. Both register into M5. Demo
 ## Stage IV — HARDENING + SHIP (S14–S16)
 Goal: stable enough for `pipx install tern` and a public README.
 
-### S14 · M12 + M13 reliability + security pass (~90 min)
-Timeouts, circuit breaker, atomic edits with journal. Provenance tagging. Entropy-aware redaction. Dangerous-action gate. Audit log of every write.
+### S14 · M12 + M13 reliability + security pass (~90 min) ✅ done 2026-05-28
+Shipped: 4 core-loop tools (write_file, glob, grep, bash) behind ADR-0003 protocol;
+sink-level secret redaction (ADR-0010) with stable per-session placeholders;
+Bedrock full-jitter retry/backoff on throttle/5xx/timeout. 210/210 tests green.
+ADRs: 0009 (tool parity), 0010 (redaction).
 
 ### S15 · M14 polish + global install (~60 min)
 Slash commands + keybindings registries. `--print` mode. `pipx install tern` smoke test on a clean machine.

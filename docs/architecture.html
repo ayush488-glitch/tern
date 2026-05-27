@@ -624,22 +624,22 @@
           <text x="100" y="1500" font-size="15" font-weight="700">M13  SECURITY</text>
           <text x="100" y="1524" font-size="11" class="label-serif">trust boundary = the file system</text>
           <line x1="100" y1="1540" x2="760" y2="1540" class="stroke-hair"/>
-          <text x="100" y="1564" font-size="11">▌ provenance tagging — user vs file vs tool-output in context</text>
-          <text x="100" y="1584" font-size="11">▌ entropy-aware redaction — covers metadata, paths, args (fail-loud)</text>
-          <text x="100" y="1604" font-size="11">▌ dangerous-action gate — rm -rf, force-push, edit outside cwd</text>
-          <text x="100" y="1624" font-size="11">▌ approval prompt for write/destructive · auto-allow read</text>
-          <text x="100" y="1644" font-size="10.5" class="label-serif">policy file as code · audit log of every write</text>
+          <text x="100" y="1564" font-size="11">▌ sink-level redactor (S14) — scrubs every span + notes-row before write</text>
+          <text x="100" y="1584" font-size="11">▌ stable per-session placeholders &lt;KIND_N&gt; — same secret, same label</text>
+          <text x="100" y="1604" font-size="11">▌ AWS · GitHub · OpenAI · Bearer · kv-pwd · PEM · high-entropy fallback</text>
+          <text x="100" y="1624" font-size="11">▌ bash deny-list (8 patterns) + permission gate · cwd pinned to repo</text>
+          <text x="100" y="1644" font-size="10.5" class="label-serif">redact at the trust boundary, not at every tool · ADR-0010</text>
 
           <!-- M12 Reliability -->
           <rect x="820" y="1470" width="700" height="200" class="stroke-thick fill-paper"/>
           <text x="840" y="1500" font-size="15" font-weight="700">M12  RELIABILITY</text>
           <text x="840" y="1524" font-size="11" class="label-serif">cynical software · failure inevitable</text>
           <line x1="840" y1="1540" x2="1500" y2="1540" class="stroke-hair"/>
-          <text x="840" y="1564" font-size="11">▌ timeout + result-size cap on every tool · provider · MCP call</text>
-          <text x="840" y="1584" font-size="11">▌ per-provider circuit breaker · per-tool dedup detection</text>
-          <text x="840" y="1604" font-size="11">▌ atomic edits (write-tmp + rename + journal) · per-step cleanup try/except</text>
-          <text x="840" y="1624" font-size="11">▌ component restart over full restart · queue-and-delay retry</text>
-          <text x="840" y="1644" font-size="10.5" class="label-serif">crash-safe edits ARE a security control · partial-edit = attack surface</text>
+          <text x="840" y="1564" font-size="11">▌ Bedrock retry/backoff (S14) — full jitter, base 0.5s, cap 8s, 4 retries</text>
+          <text x="840" y="1584" font-size="11">▌ wraps invoke_model AND invoke_model_with_response_stream</text>
+          <text x="840" y="1604" font-size="11">▌ retryable: throttle · 5xx · ModelTimeout · ServiceUnavailable</text>
+          <text x="840" y="1624" font-size="11">▌ tool-level: 200 KiB output cap (kill on overflow) · 60s default timeout</text>
+          <text x="840" y="1644" font-size="10.5" class="label-serif">cynical software · failure inevitable · component-level not full restart</text>
         </g>
 
         <!-- ───────────  CANONICAL BOUNDARY CALLOUT ─────────── -->
@@ -677,8 +677,8 @@
         <tr><td class="id">M9</td>  <td class="nm">Browser tool</td>         <td>browser-use, one BrowserSession per tern session. Agent = sub-agent. Maps AgentHistoryList → ToolResult.</td><td class="tag">D5</td></tr>
         <tr><td class="id">M10</td> <td class="nm">MCP client</td>           <td>ClientSessionGroup. stdio/http/sse. Remote tools register into M5 with namespace prefix and same permission gate.</td><td class="tag">D6</td></tr>
         <tr><td class="id">M11</td> <td class="nm">Observability</td>        <td>Trace tree of spans, NDJSON, cost attribution per span. Same data structure replay viewer renders. Drift alerts.</td><td class="tag">—</td></tr>
-        <tr><td class="id">M12</td> <td class="nm">Reliability</td>          <td>Timeouts, breakers, bulkheads, atomic edits, journal, queue-and-delay retry, component restart over full restart.</td><td class="tag">—</td></tr>
-        <tr><td class="id">M13</td> <td class="nm">Security</td>             <td>Provenance tagging, entropy-aware redaction, dangerous-action gate, approval prompts, audit log of every write.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M12</td> <td class="nm">Reliability</td>          <td>Bedrock full-jitter retry/backoff (4 retries, 0.5s base, 8s cap) on throttle/5xx/timeout, wrapping both invoke_model paths. Tool-level: 200 KiB output cap with kill-on-overflow, 60s default timeout. <strong>S14 ✅</strong></td><td class="tag">—</td></tr>
+        <tr><td class="id">M13</td> <td class="nm">Security</td>             <td>Sink-level secret redaction (ADR-0010): every span + notes-row scrubbed before write. Stable per-session placeholders <code>&lt;KIND_N&gt;</code>. Pattern catalogue ordered specific-first. Bash deny-list + permission gate; repo-rooted path validation on write_file. <strong>S14 ✅</strong></td><td class="tag">—</td></tr>
         <tr><td class="id">M14</td> <td class="nm">Slash commands &amp; keybinds</td><td>Declarative registries. Three command modes: local, local-ui, prompt-injected. Context-scoped keybindings.</td><td class="tag">—</td></tr>
       </tbody>
     </table>

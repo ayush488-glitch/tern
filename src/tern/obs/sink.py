@@ -16,18 +16,31 @@ from typing import Any
 
 from tern.core.events import TurnEvent, event_to_dict
 from tern.obs.paths import spans_path
+from tern.obs.redact import Redactor
 
 
 class NDJSONSpanSink:
     """Append events to a per-session ndjson file. Synchronous fsync-on-write
     is intentional — we'd rather lose throughput than lose the trail."""
 
-    def __init__(self, session_id: str, *, cwd: Path | None = None) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        *,
+        cwd: Path | None = None,
+        redact: bool = True,
+    ) -> None:
         self.path: Path = spans_path(session_id, cwd=cwd)
         self.session_id: str = session_id
+        # Per-session Redactor: same secret → same placeholder across all events
+        # in this session, so the trail stays correlatable without leaking.
+        self._redactor: Redactor | None = Redactor() if redact else None
 
     def write(self, ev: TurnEvent) -> None:
-        line = json.dumps(event_to_dict(ev), sort_keys=True, separators=(",", ":"))
+        payload = event_to_dict(ev)
+        if self._redactor is not None:
+            payload = self._redactor.scrub_obj(payload)
+        line = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         with self.path.open("a", encoding="utf-8") as f:
             f.write(line)
             f.write("\n")

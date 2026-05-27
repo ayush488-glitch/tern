@@ -7,9 +7,22 @@ import gymnastics.
 
 from __future__ import annotations
 
+from tern.tools.native.bash import BashTool
 from tern.tools.native.edit_block import EditBlockTool
+from tern.tools.native.glob_tool import GlobTool
+from tern.tools.native.grep_tool import GrepTool
 from tern.tools.native.notes_append import NotesAppendTool
 from tern.tools.native.read_file import ReadFileTool
 from tern.tools.native.web_fetch import WebFetchTool
+from tern.tools.native.write_file import WriteFileTool
 
-__all__ = ["EditBlockTool", "NotesAppendTool", "ReadFileTool", "WebFetchTool"]
+__all__ = [
+    "BashTool",
+    "EditBlockTool",
+    "GlobTool",
+    "GrepTool",
+    "NotesAppendTool",
+    "ReadFileTool",
+    "WebFetchTool",
+    "WriteFileTool",
+]
