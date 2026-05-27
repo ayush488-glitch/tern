@@ -26,6 +26,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [concepts/14-modules.md](concepts/14-modules.md) — M0–M14, what each module owns.
 - [concepts/m11-observability.md](concepts/m11-observability.md) — events, span pairing, ndjson sink, replay (S6).
 - [concepts/m4-canonical-messages.md](concepts/m4-canonical-messages.md) — frozen canonical types + first provider adapter, the lock installed (S7).
+- [concepts/m1-m0-turn-loop.md](concepts/m1-m0-turn-loop.md) — turn loop, CLI entry, D1 routing skeleton (S8).
 
 ## Entities
 - [entities/tern.md](entities/tern.md) — the project itself.
@@ -50,6 +51,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S5-phase-1-adrs.md](sessions/S5-phase-1-adrs.md) — ADRs 0002–0005, design locked end-to-end.
 - [sessions/S6-m11-observability.md](sessions/S6-m11-observability.md) — events, spans, ndjson sink, `tern spans` CLI, 8 tests green.
 - [sessions/S7-m4-canonical-messages.md](sessions/S7-m4-canonical-messages.md) — canonical message log + Bedrock-Anthropic adapter, 39/39 green.
+- [sessions/S8-m1-m0-turn-loop.md](sessions/S8-m1-m0-turn-loop.md) — turn loop + CLI + D1 routing, live Bedrock end-to-end, 54/54 green.
 
 ---
 

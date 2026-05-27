@@ -39,3 +39,6 @@ New: src/tern/core/canonical.py, src/tern/core/provider.py, src/tern/adapters/{_
 Tests: tests/test_canonical.py (16), tests/test_bedrock_adapter.py (15).
 Deps: +boto3>=1.34, dev +boto3-stubs[bedrock-runtime]>=1.34.
 Wiki: +concepts/m4-canonical-messages.md, +sessions/S7-m4-canonical-messages.md, index+roadmap updated. Touched: 6 wiki files.
+
+## [2026-05-27] session-end | S8 M1 + M0 turn loop + CLI
+Built `tern run` end-to-end: turn loop (`core/loop.py`), Turn dataclass + TurnPurpose enum (`core/turn.py`), D1 routing skeleton (`core/routing.py`, static map, lru_cache adapter), CLI `run` command gated on TERN_LIVE=1, FakeAdapter test double. 15 new tests (4 routing + 11 loop) all green. Live smoke `TERN_LIVE=1 tern run "say hello in exactly three words"` → "Hello there friend." cost ~$0. Span tree renders cleanly. Pitfall logged: Claude 4 on Bedrock requires `us.` inference profile prefix (on-demand throughput unsupported). Gates: 54/54 pytest, ruff clean, mypy --strict clean (18 src files), `tern 0.0.1`.

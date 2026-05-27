@@ -63,6 +63,10 @@ class BedrockAnthropicAdapter:
             supports_caching=True,
             max_input_tokens=200_000,
         )
+        # Cache of the last assistant message returned by complete(). Used by
+        # the CLI to print plain text after the event stream finishes. Reset
+        # on each complete() call.
+        self.last_response_message: CanonicalMessage | None = None
 
     # ---- to_wire (pure) ----------------------------------------------------
 
@@ -168,7 +172,9 @@ class BedrockAnthropicAdapter:
         )
         raw_bytes = result["body"].read()
         decoded = json.loads(raw_bytes.decode("utf-8"))
-        return self.from_wire(decoded)
+        response = self.from_wire(decoded)
+        self.last_response_message = response.message
+        return response
 
 
 # ---------------------------------------------------------------------------
