@@ -79,3 +79,4 @@ Symptom: HTML transcript present, "notes" section empty. Root cause: model emits
 ## [2026-05-28] session-end | S15 memory · skills self-management · notes_append fix · self-curation v0
 ## [2026-05-28] session-end | S16 multi-model + config + pricing
 ## [2026-05-28] fix | bedrock_anthropic _tool_result_to_wire empty content + test_skills memory bleed
+## [2026-05-28] decision | ADR-0011 cognitive routing + KNN recall + Bayesian priors; S18-S19 sequenced

@@ -25,6 +25,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [decisions/adr-0008-browser-and-mcp.md](decisions/adr-0008-browser-and-mcp.md) — `web_fetch` v0 (browser-shaped slot) + MCP client with stdio + `.tern/mcp.json` / D5 + D6 (S13, accepted).
 - [decisions/adr-0009-core-loop-tool-parity.md](decisions/adr-0009-core-loop-tool-parity.md) — `write_file`, `glob`, `grep`, `bash` behind the existing Tool Protocol; bash gets a three-line defense (S14, accepted).
 - [decisions/adr-0010-secret-redaction-policy.md](decisions/adr-0010-secret-redaction-policy.md) — sink-level redactor with stable per-session placeholders; default-on / M13 (S14, accepted).
+- [decisions/adr-0011-cognitive-routing-and-recall.md](decisions/adr-0011-cognitive-routing-and-recall.md) — per-turn router (decision tree → LLM fallback) + per-repo similarity recall (KNN over span embeddings) + curator with Bayesian priors over outcomes; sequenced S18–S19 (S16+, accepted).
 
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
