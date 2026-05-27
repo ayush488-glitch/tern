@@ -80,6 +80,16 @@ class LLMRequested(_EventBase):
 
 
 @dataclass(frozen=True, slots=True)
+class LLMTextDelta(_EventBase):
+    """Streaming text fragment from the LLM. Emitted between LLMRequested and
+    LLMResponded when the adapter supports streaming. UI consumers append the
+    `text` field directly; recorders may ignore (final text lives in the
+    canonical message attached to LLMResponded's parent turn)."""
+    text: str = ""
+    kind: Literal["llm_text_delta"] = "llm_text_delta"
+
+
+@dataclass(frozen=True, slots=True)
 class LLMResponded(_EventBase):
     model_id: str = ""
     tokens_in: int = 0
@@ -150,6 +160,7 @@ TurnEvent = (
     | TurnCompleted
     | UserAborted
     | LLMRequested
+    | LLMTextDelta
     | LLMResponded
     | ToolCalled
     | ToolReturned

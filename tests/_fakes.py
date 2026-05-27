@@ -90,4 +90,36 @@ def relabel_model(adapter: FakeAdapter, new_id: str) -> FakeAdapter:
     return new
 
 
-__all__ = ["FakeAdapter", "relabel_model", "replace"]
+class FakeStreamingAdapter(FakeAdapter):
+    """FakeAdapter + `stream()` that yields the reply char-by-char then 'done'."""
+
+    async def stream(
+        self,
+        messages: tuple[CanonicalMessage, ...],
+        tools: tuple[ToolSpec, ...],
+        *,
+        max_tokens: int,
+        temperature: float = 0.0,
+        cache_breakpoints: tuple[int, ...] = (),
+    ) -> Any:
+        self.calls.append(
+            {"messages": messages, "tools": tools, "max_tokens": max_tokens,
+             "temperature": temperature, "streamed": True}
+        )
+        for ch in self._reply:
+            yield ("text", ch)
+        cost = Cost(input_tokens=7, output_tokens=3, usd_in=0.0, usd_out=0.0)
+        msg = CanonicalMessage(
+            role="assistant",
+            content=(TextBlock(text=self._reply),),
+            metadata=Metadata(
+                schema_version=SCHEMA_VERSION, ts=0.0,
+                model_id=self.model_id, cost=cost, provenance="fake",
+            ),
+        )
+        yield ("done", ProviderResponse(
+            message=msg, stop_reason="end_turn", cost=cost, raw_id="fake-id"
+        ))
+
+
+__all__ = ["FakeAdapter", "FakeStreamingAdapter", "relabel_model", "replace"]

@@ -45,3 +45,10 @@ Built `tern run` end-to-end: turn loop (`core/loop.py`), Turn dataclass + TurnPu
 
 ## [2026-05-27] session-end | S9 M5 tools + M2 chat UI
 Built the agent. Four commits: (1) Tool Protocol + Registry (gate 1, mode filter) + PermissionGate (gate 2, prompter) + 13 tests; (2) read_file + edit_block native tools w/ aider-style perfect_or_whitespace match + 15 tests; (3) multi-step loop with tool dispatch, ValidationError reflection retry, ApprovalRequested/Granted/Denied event pair, max_steps cap + 10 new loop tests; (4) Textual ChatApp with PermissionModal y/n overlay + `tern chat --mode {default,safe,yolo}` CLI. Bedrock-Anthropic adapter already handled tool_use/tool_result blocks from S7 — no changes needed. Gates: 92/92 pytest, ruff clean, mypy --strict clean (27 src files, textual.* override), live `tern run` smoke green. Pitfalls logged: Pydantic invariance on `args_model: type[BaseModel]`, Textual classes need `# type: ignore[misc]` under strict, BINDINGS needs ClassVar annotation for ruff RUF012. Demo surface: `TERN_LIVE=1 tern chat`. Next session S10 = M3 sessions + replay so the chat actually persists.
+
+## [2026-05-27] session-end | S9.5 inline-repl-streaming
+Ripped Textual TUI. Built inline REPL on prompt_toolkit + rich.live with day-1
+Bedrock streaming and diff-up-front edit_block approval. LLMTextDelta event,
+StreamingProviderAdapter Protocol, FakeStreamingAdapter test double, +4 tests.
+Gates: pytest 96/96, ruff clean, mypy --strict clean (27 src), live Bedrock
+streaming smoke green. Touched: 12 files.

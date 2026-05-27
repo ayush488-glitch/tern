@@ -9,6 +9,7 @@ up empty or becomes a god-conditional. Protocol keeps the contract honest.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any, Protocol, runtime_checkable
 
 from tern.core.canonical import (
@@ -59,3 +60,31 @@ class ProviderAdapter(Protocol):
     def from_wire(response: Any) -> ProviderResponse:
         """provider wire format -> canonical. Must be pure."""
         ...
+
+
+# Optional streaming protocol — adapters that implement `stream()` enable
+# token-by-token UI rendering. The loop calls hasattr(adapter, "stream")
+# and falls back to `complete()` otherwise. Keeping streaming optional means
+# fakes and offline adapters don't need to implement it.
+#
+# Tuple shape:
+#   ("text", str)                 — partial assistant text
+#   ("tool_use_start", dict)      — {id, name} when a tool block opens
+#   ("tool_args_delta", str)      — partial tool input json
+#   ("done", ProviderResponse)    — once stream ends; loop uses this
+StreamEvent = tuple[str, Any]
+
+
+@runtime_checkable
+class StreamingProviderAdapter(Protocol):
+    """Marker Protocol for adapters that support `stream()`."""
+
+    def stream(
+        self,
+        messages: tuple[CanonicalMessage, ...],
+        tools: tuple[ToolSpec, ...],
+        *,
+        max_tokens: int,
+        temperature: float = 0.0,
+        cache_breakpoints: tuple[int, ...] = (),
+    ) -> AsyncIterator[StreamEvent]: ...

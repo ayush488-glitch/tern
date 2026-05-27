@@ -17,6 +17,7 @@ The hard parts pinned by tests:
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import boto3
@@ -37,6 +38,11 @@ from tern.core.canonical import (
 
 # Anthropic Messages API version Bedrock expects in the request body.
 _ANTHROPIC_VERSION = "bedrock-2023-05-31"
+
+
+# Streaming tuple shape: ("text", str) | ("tool_use_start", dict) |
+# ("tool_args_delta", str) | ("done", ProviderResponse)
+StreamEvent = tuple[str, Any]
 
 
 class BedrockAnthropicAdapter:
@@ -175,6 +181,150 @@ class BedrockAnthropicAdapter:
         response = self.from_wire(decoded)
         self.last_response_message = response.message
         return response
+
+    # ---- stream (side-effecting; boto3 streaming) -------------------------
+
+    async def stream(
+        self,
+        messages: tuple[CanonicalMessage, ...],
+        tools: tuple[ToolSpec, ...],
+        *,
+        max_tokens: int,
+        temperature: float = 0.0,
+        cache_breakpoints: tuple[int, ...] = (),
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a turn. Yields:
+
+            ("text", "...partial text...")          for each text delta
+            ("tool_use_start", {id, name})          when a tool block starts
+            ("tool_args_delta", "...partial json...")  partial input_json
+            ("done", ProviderResponse)              once stream ends
+
+        Anthropic-on-Bedrock streaming uses content_block_start /
+        content_block_delta / content_block_stop / message_delta / message_stop
+        events in a server-sent stream. We assemble blocks as they arrive,
+        then synthesize a ProviderResponse for the loop.
+        """
+        body = self.to_wire(messages, tools, cache_breakpoints=cache_breakpoints)
+        body["max_tokens"] = max_tokens
+        body["temperature"] = temperature
+
+        client = boto3.client("bedrock-runtime", region_name=self.region)
+        result = client.invoke_model_with_response_stream(
+            modelId=self.model_id,
+            body=json.dumps(body).encode("utf-8"),
+            accept="application/json",
+            contentType="application/json",
+        )
+
+        # Block accumulators: index → (type, payload-in-progress).
+        text_blocks: dict[int, list[str]] = {}
+        tool_blocks: dict[int, dict[str, Any]] = {}  # {"id", "name", "args_json"}
+        block_kinds: dict[int, str] = {}
+        stop_reason = "end_turn"
+        usage_in = 0
+        usage_out = 0
+        raw_id = ""
+        model_seen = ""
+
+        for ev in result["body"]:
+            chunk = ev.get("chunk")
+            if not chunk:
+                continue
+            payload = json.loads(chunk["bytes"].decode("utf-8"))
+            t = payload.get("type")
+            if t == "message_start":
+                msg = payload.get("message", {}) or {}
+                raw_id = msg.get("id", "")
+                model_seen = msg.get("model", "")
+                u = msg.get("usage", {}) or {}
+                usage_in = int(u.get("input_tokens", 0))
+                usage_out = int(u.get("output_tokens", 0))
+            elif t == "content_block_start":
+                idx = int(payload.get("index", 0))
+                block = payload.get("content_block", {}) or {}
+                kind = block.get("type", "")
+                block_kinds[idx] = kind
+                if kind == "text":
+                    text_blocks[idx] = []
+                elif kind == "tool_use":
+                    tool_blocks[idx] = {
+                        "id": block.get("id", ""),
+                        "name": block.get("name", ""),
+                        "args_json": "",
+                    }
+                    yield ("tool_use_start", {
+                        "id": block["id"],
+                        "name": block["name"],
+                    })
+            elif t == "content_block_delta":
+                idx = int(payload.get("index", 0))
+                delta = payload.get("delta", {}) or {}
+                d_type = delta.get("type")
+                if d_type == "text_delta":
+                    chunk_text = delta.get("text", "")
+                    text_blocks.setdefault(idx, []).append(chunk_text)
+                    yield ("text", chunk_text)
+                elif d_type == "input_json_delta":
+                    partial = delta.get("partial_json", "")
+                    tool_blocks.setdefault(
+                        idx, {"id": "", "name": "", "args_json": ""}
+                    )["args_json"] += partial
+                    yield ("tool_args_delta", partial)
+            elif t == "content_block_stop":
+                # nothing to do; we built blocks incrementally
+                pass
+            elif t == "message_delta":
+                d = payload.get("delta", {}) or {}
+                if "stop_reason" in d:
+                    stop_reason = d["stop_reason"] or stop_reason
+                u = payload.get("usage", {}) or {}
+                if "output_tokens" in u:
+                    usage_out = int(u["output_tokens"])
+            elif t == "message_stop":
+                pass
+
+        # Reassemble final canonical message in original block order.
+        all_indices = sorted(set(text_blocks) | set(tool_blocks))
+        final_blocks: list[Any] = []
+        for idx in all_indices:
+            if block_kinds.get(idx) == "text":
+                final_blocks.append(TextBlock(text="".join(text_blocks[idx])))
+            elif block_kinds.get(idx) == "tool_use":
+                tb = tool_blocks[idx]
+                try:
+                    args = json.loads(tb["args_json"]) if tb["args_json"] else {}
+                except json.JSONDecodeError:
+                    args = {}
+                final_blocks.append(
+                    ToolCallBlock(id=tb["id"], name=tb["name"], args=args)
+                )
+
+        cost = Cost(
+            input_tokens=usage_in,
+            output_tokens=usage_out,
+            usd_in=0.0,
+            usd_out=0.0,
+        )
+        message = CanonicalMessage(
+            role="assistant",
+            content=tuple(final_blocks),
+            metadata=Metadata(
+                schema_version=SCHEMA_VERSION,
+                ts=0.0,
+                model_id=model_seen or self.model_id,
+                cost=cost,
+                provenance="bedrock-anthropic",
+            ),
+        )
+        response = ProviderResponse(
+            message=message,
+            stop_reason=stop_reason,
+            cost=cost,
+            raw_id=raw_id,
+        )
+        self.last_response_message = response.message
+        yield ("done", response)
 
 
 # ---------------------------------------------------------------------------

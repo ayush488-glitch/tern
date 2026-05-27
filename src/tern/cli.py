@@ -203,9 +203,11 @@ def chat(
         None, "--cwd", help="Repo root for tool sandbox (default: current)."
     ),
 ) -> None:
-    """Open a Textual chat session with tools wired in.
+    """Open an inline REPL chat session with tools wired in.
 
-    Live Bedrock call. Requires `TERN_LIVE=1` to actually hit the network.
+    Streams Bedrock tokens live; destructive tools prompt inline with a
+    unified diff. Ctrl+C cancels the in-flight turn; press it twice to exit.
+    Requires `TERN_LIVE=1` to confirm you want a live Bedrock call.
     """
     if os.environ.get("TERN_LIVE") != "1":
         typer.secho(

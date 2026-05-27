@@ -54,6 +54,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S7-m4-canonical-messages.md](sessions/S7-m4-canonical-messages.md) — canonical message log + Bedrock-Anthropic adapter, 39/39 green.
 - [sessions/S8-m1-m0-turn-loop.md](sessions/S8-m1-m0-turn-loop.md) — turn loop + CLI + D1 routing, live Bedrock end-to-end, 54/54 green.
 - [sessions/S9-m5-tools-m2-chat-ui.md](sessions/S9-m5-tools-m2-chat-ui.md) — M5 tools (read_file, edit_block) + M2 Textual chat UI, double permission gate, 92/92 green.
+- [sessions/S9.5-inline-repl-streaming.md](sessions/S9.5-inline-repl-streaming.md) — Ripped Textual; built inline REPL on prompt_toolkit + rich.live; day-1 Bedrock streaming; diff-up-front edit_block prompt. 96/96 green.
 
 ---
 

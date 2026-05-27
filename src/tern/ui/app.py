@@ -1,28 +1,32 @@
-"""Tern chat — a Textual TUI for the agent loop.
+"""Inline REPL chat surface (M2).
 
-Replaces the one-shot `tern run` workflow with a persistent chat session.
-Wires the M5 tool registry into M1 so read_file + edit_block are callable.
-Permission gate prompts route through a modal overlay; user picks y/n with
-the keyboard.
+Replaces the Textual full-screen TUI with a Claude-Code-style inline experience:
 
-Usage:
-    TERN_LIVE=1 tern chat
-    TERN_LIVE=1 tern chat --mode safe   # destructive tools filtered out
+  - prompt_toolkit handles input (history, multiline, key bindings)
+  - rich.live streams assistant tokens in place
+  - tool calls render as collapsed one-liners (`← read_file ok 3,054B`)
+  - destructive tools prompt inline with an up-front unified diff
+  - Ctrl+C cancels the current turn; second Ctrl+C exits
+
+No screen takeover. Scrollback preserved. Output goes through one `Console`.
 """
-
 from __future__ import annotations
 
 import asyncio
+import difflib
 import uuid
 from pathlib import Path
-from typing import Any, ClassVar
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.patch_stdout import patch_stdout
+from pydantic import BaseModel
+from rich.console import Console
+from rich.live import Live
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.syntax import Syntax
 from rich.text import Text
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Vertical
-from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, Input, Label, RichLog
 
 from tern.core.canonical import (
     SCHEMA_VERSION,
@@ -33,218 +37,300 @@ from tern.core.canonical import (
 from tern.core.events import (
     ApprovalRequested,
     LLMResponded,
+    LLMTextDelta,
+    ReflectionTriggered,
     ToolCalled,
     ToolReturned,
     TurnCompleted,
     TurnEvent,
 )
 from tern.core.loop import run_turn
+from tern.core.provider import ProviderAdapter
 from tern.core.routing import select_adapter
 from tern.core.turn import Turn, TurnPurpose
+from tern.obs.paths import spans_path
 from tern.obs.recorder import SpanRecorder
 from tern.obs.sink import NDJSONSpanSink
-from tern.tools import ApprovalDecision, PermissionGate, Registry
+from tern.tools import (
+    ApprovalDecision,
+    PermissionGate,
+    Registry,
+    Tool,
+    ToolContext,
+)
 from tern.tools.native import EditBlockTool, ReadFileTool
+from tern.tools.permissions import Prompter
+
+# ---------------------------------------------------------------------------
+# inline approval prompter
+# ---------------------------------------------------------------------------
 
 
-class PermissionModal(ModalScreen[bool]):  # type: ignore[misc]
-    """Yes/no overlay for destructive tool calls."""
-
-    BINDINGS: ClassVar[list[Binding]] = [
-        Binding("y", "approve", "Approve"),
-        Binding("n", "deny", "Deny"),
-        Binding("escape", "deny", "Deny"),
-    ]
-
-    def __init__(self, tool_name: str, args_preview: str) -> None:
-        super().__init__()
-        self._tool = tool_name
-        self._args = args_preview
-
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label(f"[b]{self._tool}[/b] wants to run."),
-            Label(f"[dim]{self._args}[/dim]"),
-            Label(""),
-            Label("[y] approve   [n] deny"),
-            id="permission-modal",
+def _diff_for_edit_block(args: BaseModel, repo_root: Path) -> str | None:
+    """Best-effort unified diff for edit_block. Returns None if not applicable."""
+    path = getattr(args, "path", None)
+    search = getattr(args, "search", None)
+    replace = getattr(args, "replace", None)
+    if not (path and search is not None and replace is not None):
+        return None
+    fpath = (repo_root / path).resolve()
+    try:
+        original = fpath.read_text()
+    except OSError:
+        original = ""
+    # Render a small "would change" diff against the search/replace pair, even
+    # if we can't apply it cleanly here. The model already chose the strings;
+    # showing the user (search → replace) is the honest preview.
+    diff = difflib.unified_diff(
+        search.splitlines(keepends=True),
+        replace.splitlines(keepends=True),
+        fromfile=f"a/{path}",
+        tofile=f"b/{path}",
+        n=3,
+    )
+    text = "".join(diff)
+    if not text and search != replace:
+        text = f"--- a/{path}\n+++ b/{path}\n-{search}\n+{replace}\n"
+    # Sanity: confirm the search string appears in the file at all.
+    if search and original and search not in original:
+        text = (
+            f"# warning: search block not found verbatim in {path}\n"
+            f"# (will fall back to fuzzy match)\n" + text
         )
-
-    def action_approve(self) -> None:
-        self.dismiss(True)
-
-    def action_deny(self) -> None:
-        self.dismiss(False)
+    return text or None
 
 
-class ChatApp(App[None]):  # type: ignore[misc]
-    """Tern chat application."""
+def _build_inline_prompter(
+    console: Console, repo_root: Path
+) -> Prompter:
+    """Make an async prompter that renders the diff up-front and reads y/n/d."""
 
-    CSS = """
-    Screen { background: $surface; }
-    #log { height: 1fr; border: round $primary; padding: 0 1; }
-    Input { dock: bottom; }
-    #permission-modal {
-        align: center middle;
-        background: $boost;
-        padding: 1 2;
-        border: thick $warning;
-        width: 60;
-        height: auto;
-    }
+    async def prompter(
+        tool: Tool, args: BaseModel, ctx: ToolContext
+    ) -> ApprovalDecision:
+        # Print the request line.
+        console.print()
+        console.print(
+            Text.assemble(
+                ("⚠ ", "yellow"),
+                (f"{tool.name}", "bold"),
+                (" wants to run: ", "yellow"),
+                (str(args), "dim"),
+            )
+        )
+        # Up-front diff for edit_block.
+        if tool.name == "edit_block":
+            diff = _diff_for_edit_block(args, repo_root)
+            if diff:
+                console.print(
+                    Panel(
+                        Syntax(diff, "diff", theme="ansi_dark", word_wrap=True),
+                        title="proposed change",
+                        border_style="dim",
+                    )
+                )
+
+        # Inline y/n prompt — uses prompt_toolkit so stdin lives nicely
+        # alongside any background output.
+        sess: PromptSession[str] = PromptSession()
+        loop = asyncio.get_running_loop()
+        while True:
+            try:
+                ans = (
+                    await loop.run_in_executor(
+                        None,
+                        lambda: sess.prompt("approve? [y/N] ").strip().lower(),
+                    )
+                )
+            except (EOFError, KeyboardInterrupt):
+                ans = "n"
+            if ans in {"y", "yes"}:
+                return ApprovalDecision.GRANTED
+            if ans in {"", "n", "no"}:
+                return ApprovalDecision.DENIED
+            console.print("[dim]please answer y or n[/dim]")
+
+    return prompter
+
+
+# ---------------------------------------------------------------------------
+# event renderer
+# ---------------------------------------------------------------------------
+
+
+class _StreamRenderer:
+    """Owns the Live region for the in-flight assistant message.
+
+    Prints non-streamed events (tool lines, approvals) directly through the
+    same console — Live yields cleanly so scrollback stays sane.
     """
 
-    BINDINGS: ClassVar[list[Binding]] = [
-        Binding("ctrl+c", "quit", "Quit"),
-    ]
+    def __init__(self, console: Console) -> None:
+        self.console = console
+        self._buf: list[str] = []
+        self._live: Live | None = None
 
-    def __init__(
-        self,
-        *,
-        mode: str = "default",
-        repo_root: Path | None = None,
-    ) -> None:
-        super().__init__()
-        self.mode = mode
-        self.repo_root = repo_root or Path.cwd()
-        self.session_id = uuid.uuid4().hex[:12]
-        self.messages: tuple[CanonicalMessage, ...] = ()
-        self.turn_idx = 0
-        self.registry = Registry([ReadFileTool(), EditBlockTool()])
-        self.gate = PermissionGate(prompter=self._approval_prompt)
-        self.sink = NDJSONSpanSink(session_id=self.session_id)
-        self.recorder = SpanRecorder(sink=self.sink)
-        self.busy = False
+    def _render(self) -> Markdown:
+        return Markdown("".join(self._buf) or "…")
 
-    # ---- compose / startup ------------------------------------------------
+    def _open(self) -> None:
+        if self._live is None:
+            self._live = Live(
+                self._render(),
+                console=self.console,
+                refresh_per_second=24,
+                transient=False,
+            )
+            self._live.__enter__()
 
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
-        yield RichLog(id="log", markup=True, wrap=True, highlight=False)
-        yield Input(placeholder="ask tern… ('/exit' to quit)")
-        yield Footer()
+    def _close(self) -> None:
+        if self._live is not None:
+            self._live.update(self._render(), refresh=True)
+            self._live.__exit__(None, None, None)
+            self._live = None
+            self._buf.clear()
 
-    def on_mount(self) -> None:
-        self.title = f"tern · session {self.session_id} · mode={self.mode}"
-        log = self.query_one("#log", RichLog)
-        log.write(Text("welcome to tern. type a prompt or /exit.", style="dim"))
-
-    # ---- input ------------------------------------------------------------
-
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        text = event.value.strip()
-        event.input.value = ""
-        if not text:
+    def feed(self, ev: TurnEvent) -> None:
+        if isinstance(ev, LLMTextDelta):
+            self._open()
+            self._buf.append(ev.text)
+            assert self._live is not None
+            self._live.update(self._render())
             return
-        if text in {"/exit", "/quit"}:
-            self.exit()
-            return
-        if self.busy:
-            self._log_dim("(busy — wait for the current turn to finish)")
-            return
-        self._log_user(text)
-        self.busy = True
-        self.run_worker(self._run_one_turn(text), exclusive=True)
 
-    # ---- turn runner ------------------------------------------------------
+        if isinstance(ev, LLMResponded):
+            self._close()
+            self.console.print(
+                f"[dim]· {ev.model_id}  in={ev.tokens_in} out={ev.tokens_out} "
+                f"${ev.cost_usd:.4f}[/dim]"
+            )
+            return
 
-    async def _run_one_turn(self, prompt: str) -> None:
+        # any non-streaming event — close the live block first.
+        self._close()
+
+        if isinstance(ev, ToolCalled):
+            self.console.print(
+                f"[cyan]→[/cyan] {ev.tool_name} [dim]{ev.args_preview}[/dim]"
+            )
+        elif isinstance(ev, ToolReturned):
+            mark = "[green]✓[/green]" if ev.ok else "[red]✗[/red]"
+            tail = f"  {ev.bytes_out}B" if ev.ok else f"  {ev.error}"
+            self.console.print(f"{mark} {ev.tool_name}[dim]{tail}[/dim]")
+        elif isinstance(ev, ApprovalRequested):
+            # the prompter renders the actual prompt; this is just a marker
+            pass
+        elif isinstance(ev, ReflectionTriggered):
+            self.console.print(
+                f"[yellow]↻[/yellow] reflect: {ev.cause}"
+            )
+        elif isinstance(ev, TurnCompleted) and ev.reason != "done":
+            self.console.print(f"[dim]turn ended: {ev.reason}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# REPL
+# ---------------------------------------------------------------------------
+
+
+_HELP = """\
+[bold]tern chat[/bold] — inline REPL.
+
+  type a prompt and press Enter to send.
+  Esc, Enter inserts a newline (multi-line input).
+  Ctrl+C cancels the current turn; press it twice to exit.
+  /help    show this
+  /quit    exit
+"""
+
+
+def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
+    """Blocking entry point. Wires registry + gate + adapter, runs the REPL."""
+    repo = (repo_root or Path.cwd()).resolve()
+    console = Console()
+    console.print(_HELP)
+
+    registry = Registry([ReadFileTool(), EditBlockTool()])
+    gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
+    session_id = uuid.uuid4().hex[:12]
+    sink = NDJSONSpanSink(session_id=session_id, cwd=repo)
+    rec = SpanRecorder(sink=sink)
+
+    history: list[CanonicalMessage] = []
+    pt_session: PromptSession[str] = PromptSession(history=InMemoryHistory())
+
+    turn_idx = 0
+    while True:
         try:
-            user_msg = CanonicalMessage(
+            with patch_stdout():
+                user_text = pt_session.prompt("» ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print("[dim]bye.[/dim]")
+            break
+        if not user_text:
+            continue
+        if user_text in {"/quit", "/exit"}:
+            console.print("[dim]bye.[/dim]")
+            break
+        if user_text == "/help":
+            console.print(_HELP)
+            continue
+
+        history.append(
+            CanonicalMessage(
                 role="user",
-                content=(TextBlock(text=prompt),),
+                content=(TextBlock(text=user_text),),
                 metadata=Metadata(
                     schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
                 ),
             )
-            self.messages = (*self.messages, user_msg)
-            adapter = select_adapter(TurnPurpose.CODE)
-            turn = Turn(
-                id=uuid.uuid4().hex[:12],
-                session_id=self.session_id,
-                idx=self.turn_idx,
-                purpose=TurnPurpose.CODE,
-                messages=self.messages,
-                registry=self.registry,
-                gate=self.gate,
-                mode=self.mode,
-                repo_root=self.repo_root,
-                max_tokens=1024,
-            )
-            assistant_text_seen = False
-            async for ev in run_turn(turn, adapter):
-                self.recorder.consume(ev)
-                self._log_event(ev)
-                if isinstance(ev, TurnCompleted):
-                    pass
-            # Append the rolling assistant + tool messages by re-pulling the
-            # final assistant text (cached on the adapter, last call).
-            last_msg = getattr(adapter, "last_response_message", None)
-            if last_msg is not None:
-                self.messages = (*self.messages, last_msg)
-                for block in last_msg.content:
-                    if isinstance(block, TextBlock):
-                        self._log_assistant(block.text)
-                        assistant_text_seen = True
-            if not assistant_text_seen:
-                self._log_dim("(no assistant text this turn)")
-            self.turn_idx += 1
-        except Exception as exc:
-            self._log_dim(f"[red]error: {exc}[/red]")
-        finally:
-            self.busy = False
+        )
+        adapter = select_adapter(TurnPurpose.CODE)
+        turn = Turn(
+            id=uuid.uuid4().hex[:12],
+            session_id=session_id,
+            idx=turn_idx,
+            purpose=TurnPurpose.CODE,
+            messages=tuple(history),
+            mode=mode,
+            registry=registry,
+            gate=gate,
+            repo_root=repo,
+            max_tokens=2048,
+        )
+        renderer = _StreamRenderer(console)
 
-    # ---- approval prompter ------------------------------------------------
+        async def _go(
+            _turn: Turn = turn,
+            _adapter: ProviderAdapter = adapter,
+            _r: _StreamRenderer = renderer,
+        ) -> None:
+            async for ev in run_turn(_turn, _adapter):
+                rec.consume(ev)
+                _r.feed(ev)
 
-    async def _approval_prompt(
-        self, tool: Any, args: Any, ctx: Any
-    ) -> ApprovalDecision:
-        decision_future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        try:
+            asyncio.run(_go())
+        except KeyboardInterrupt:
+            renderer._close()
+            console.print("[yellow]·[/yellow] turn cancelled (Ctrl+C again to exit)")
+            try:
+                with patch_stdout():
+                    pt_session.prompt("» ", default="").strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print("[dim]bye.[/dim]")
+                break
 
-        def _on_dismiss(value: bool | None) -> None:
-            if not decision_future.done():
-                decision_future.set_result(bool(value))
+        # Append the final assistant message to history so multi-turn works.
+        last = getattr(adapter, "last_response_message", None)
+        if last is not None:
+            history.append(last)
+        turn_idx += 1
 
-        def _push() -> None:
-            self.push_screen(
-                PermissionModal(tool.name, repr(args)[:80]), _on_dismiss
-            )
-
-        self.call_from_thread(_push) if False else _push()  # always on UI thread
-        granted = await decision_future
-        return ApprovalDecision.GRANTED if granted else ApprovalDecision.DENIED
-
-    # ---- log helpers ------------------------------------------------------
-
-    def _log(self, msg: str) -> None:
-        self.query_one("#log", RichLog).write(msg)
-
-    def _log_user(self, text: str) -> None:
-        self._log(f"[bold cyan]you[/bold cyan] {text}")
-
-    def _log_assistant(self, text: str) -> None:
-        self._log(f"[bold green]tern[/bold green] {text}")
-
-    def _log_dim(self, text: str) -> None:
-        self._log(f"[dim]{text}[/dim]")
-
-    def _log_event(self, ev: TurnEvent) -> None:
-        if isinstance(ev, LLMResponded):
-            self._log_dim(
-                f"· llm {ev.model_id} in={ev.tokens_in} out={ev.tokens_out} "
-                f"${ev.cost_usd:.4f} ({ev.stop_reason})"
-            )
-        elif isinstance(ev, ToolCalled):
-            self._log_dim(f"· tool {ev.tool_name}({ev.args_preview})")
-        elif isinstance(ev, ToolReturned):
-            tag = "ok" if ev.ok else f"err: {ev.error}"
-            self._log_dim(f"· ← {ev.tool_name} {tag} ({ev.bytes_out}B)")
-        elif isinstance(ev, ApprovalRequested):
-            self._log_dim(f"· asking permission for {ev.tool_name}…")
-        elif isinstance(ev, TurnCompleted):
-            self._log_dim(f"· turn done: {ev.reason}")
+    console.print(
+        f"[dim]session {session_id}  ·  cost ${rec.total_cost_usd():.4f}[/dim]"
+    )
+    console.print(f"[dim]spans: {spans_path(session_id, cwd=repo)}[/dim]")
 
 
-def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
-    """Entry point used by the CLI."""
-    ChatApp(mode=mode, repo_root=repo_root).run()
+__all__ = ["run_chat"]

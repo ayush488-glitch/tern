@@ -41,6 +41,7 @@ from tern.core.events import (
     ApprovalRequested,
     LLMRequested,
     LLMResponded,
+    LLMTextDelta,
     ReflectionTriggered,
     ToolCalled,
     ToolReturned,
@@ -87,12 +88,31 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
         )
         yield requested
 
-        response = await adapter.complete(
-            messages=messages,
-            tools=tool_specs,
-            max_tokens=turn.max_tokens,
-            temperature=turn.temperature,
-        )
+        if hasattr(adapter, "stream"):
+            response = None
+            async for ev in adapter.stream(
+                messages=messages,
+                tools=tool_specs,
+                max_tokens=turn.max_tokens,
+                temperature=turn.temperature,
+            ):
+                kind, payload = ev
+                if kind == "text":
+                    yield LLMTextDelta(parent_id=requested.id, text=payload)
+                elif kind == "done":
+                    response = payload
+            if response is None:
+                # adapter implemented stream() but never yielded "done";
+                # treat as provider error and end the turn.
+                completion_reason = "provider_error"
+                break
+        else:
+            response = await adapter.complete(
+                messages=messages,
+                tools=tool_specs,
+                max_tokens=turn.max_tokens,
+                temperature=turn.temperature,
+            )
 
         yield LLMResponded(
             parent_id=requested.id,
