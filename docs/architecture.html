@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>tern — architecture</title>
+<style>
+  :root {
+    --ink: #000;
+    --paper: #fff;
+    --line: #000;
+    --hair: 1px;
+    --rule: 1.25px;
+    --thick: 2px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+    --serif: "iA Writer Quattro", Charter, "Iowan Old Style", "Source Serif Pro", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .page {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 64px 56px 80px;
+  }
+  /* Masthead */
+  .masthead {
+    border-top: var(--thick) solid var(--ink);
+    border-bottom: var(--hair) solid var(--ink);
+    padding: 28px 0 24px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 32px;
+  }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 88px;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .masthead h1 em {
+    font-style: italic;
+    font-weight: 400;
+  }
+  .masthead .meta {
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: right;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+  }
+  .masthead .meta .v { font-family: var(--mono); }
+  .lede {
+    margin: 22px 0 0;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 19px;
+    line-height: 1.5;
+    max-width: 940px;
+  }
+
+  /* Section header */
+  .section {
+    margin-top: 64px;
+  }
+  .section-head {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    align-items: baseline;
+    border-bottom: var(--hair) solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 28px;
+  }
+  .section-head .num {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+  .section-head .title {
+    font-family: var(--serif);
+    font-size: 28px;
+    letter-spacing: -0.01em;
+  }
+
+  /* Differentiators strip */
+  .diffs {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    border: var(--hair) solid var(--ink);
+    margin-top: 28px;
+  }
+  .diff {
+    padding: 18px 16px 22px;
+    border-right: var(--hair) solid var(--ink);
+    min-height: 124px;
+  }
+  .diff:last-child { border-right: 0; }
+  .diff .tag {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+  }
+  .diff .name {
+    font-family: var(--serif);
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    margin-bottom: 10px;
+  }
+  .diff .desc {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #222;
+  }
+
+  /* Diagram frame */
+  .diagram {
+    border: var(--hair) solid var(--ink);
+    background: var(--paper);
+    padding: 0;
+    overflow: hidden;
+  }
+  .diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Three-col text */
+  .columns-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 36px;
+  }
+  .columns-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+  }
+  .col h3 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 16px;
+    margin: 0 0 10px;
+    border-bottom: var(--hair) solid var(--ink);
+    padding-bottom: 4px;
+  }
+  .col p, .col li {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .col ul {
+    margin: 0; padding: 0; list-style: none;
+  }
+  .col li {
+    padding: 6px 0;
+    border-bottom: var(--hair) dashed #888;
+  }
+  .col li:last-child { border-bottom: 0; }
+  .col li .k {
+    display: inline-block;
+    min-width: 28px;
+    font-weight: 600;
+  }
+
+  /* Module index */
+  .mod-index {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .mod-index th, .mod-index td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: var(--hair) solid var(--ink);
+    vertical-align: top;
+  }
+  .mod-index th {
+    border-top: var(--hair) solid var(--ink);
+    border-bottom: var(--rule) solid var(--ink);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--paper);
+  }
+  .mod-index td.id {
+    font-weight: 600;
+    width: 56px;
+  }
+  .mod-index td.nm {
+    width: 220px;
+    font-family: var(--serif);
+    font-style: italic;
+  }
+  .mod-index td.tag {
+    width: 48px;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  /* Pull quote */
+  .pull {
+    border-top: var(--rule) solid var(--ink);
+    border-bottom: var(--rule) solid var(--ink);
+    padding: 36px 0;
+    margin: 56px 0;
+    text-align: center;
+  }
+  .pull blockquote {
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1.3;
+    margin: 0 auto;
+    max-width: 1100px;
+    letter-spacing: -0.005em;
+  }
+  .pull .attr {
+    margin-top: 18px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+
+  /* Footer */
+  .colophon {
+    border-top: var(--thick) solid var(--ink);
+    margin-top: 80px;
+    padding-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+  }
+
+  /* SVG text */
+  svg text {
+    font-family: var(--mono);
+    fill: var(--ink);
+  }
+  svg .label-serif {
+    font-family: var(--serif);
+    font-style: italic;
+  }
+  svg .stroke { stroke: var(--ink); fill: none; stroke-width: 1.25; }
+  svg .stroke-thick { stroke: var(--ink); fill: none; stroke-width: 2; }
+  svg .stroke-hair { stroke: var(--ink); fill: none; stroke-width: 0.75; }
+  svg .stroke-dash { stroke: var(--ink); fill: none; stroke-width: 1; stroke-dasharray: 3 3; }
+  svg .fill-ink { fill: var(--ink); }
+  svg .fill-paper { fill: var(--paper); }
+
+  @media (max-width: 900px) {
+    .page { padding: 24px 18px 48px; }
+    .masthead h1 { font-size: 56px; }
+    .diffs { grid-template-columns: repeat(2, 1fr); }
+    .diff { border-right: 0; border-bottom: var(--hair) solid var(--ink); }
+    .columns-3, .columns-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ───────────────  MASTHEAD  ─────────────── -->
+  <header class="masthead">
+    <div>
+      <h1><em>tern</em></h1>
+      <div style="margin-top:4px; font-size:12px; letter-spacing:0.18em;">
+        A CODING AGENT — ARCHITECTURE, v0
+      </div>
+    </div>
+    <div class="meta">
+      Tern · open foundation<br>
+      drawn 2026 · python 3.12<br>
+      14 modules · 6 differentiators<br>
+      <span class="v">commit: pending</span>
+    </div>
+  </header>
+
+  <p class="lede">
+    A coding agent in the spirit of Claude Code — with per-turn cost routing,
+    skills as a first-class primitive, git-style replay and branching of every turn,
+    a live implementation-notes artifact, browser-use as a real tool, and MCP
+    built into the same registry as the native tool surface. Designed end-to-end
+    before code, then built.
+  </p>
+
+  <!-- ───────────────  DIFFERENTIATORS  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 01</div>
+      <div class="title">Six things no shipping coding agent has together</div>
+    </div>
+    <div class="diffs">
+      <div class="diff">
+        <div class="tag">D1</div>
+        <div class="name">Per-turn cost routing</div>
+        <div class="desc">Every turn picks its own model from a policy. Plan with Haiku, edit with Sonnet, debug with Opus. Same canonical messages, different adapter.</div>
+      </div>
+      <div class="diff">
+        <div class="tag">D2</div>
+        <div class="name">Skills first-class</div>
+        <div class="desc">Loaded like tools, scoped per turn, retrieval-shaped. The system prompt stays thin; expertise is composable on disk.</div>
+      </div>
+      <div class="diff">
+        <div class="tag">D3</div>
+        <div class="name">Replay &amp; branch</div>
+        <div class="desc">Every turn is a content-addressed object. Git for agent sessions: walk, fork, A/B prompts, resume after crash by replay.</div>
+      </div>
+      <div class="diff">
+        <div class="tag">D4</div>
+        <div class="name">Live notes artifact</div>
+        <div class="desc">A black-and-white HTML implementation note rendered at runtime, not just teaching-time. The agent works and the artifact updates.</div>
+      </div>
+      <div class="diff">
+        <div class="tag">D5</div>
+        <div class="name">Browser as a tool</div>
+        <div class="desc">browser-use, one long-lived BrowserSession per tern session. Sub-agent contract — call <code>agent.run()</code> once, surface a structured result.</div>
+      </div>
+      <div class="diff">
+        <div class="tag">D6</div>
+        <div class="name">MCP built-in</div>
+        <div class="desc">Day-one MCP client. Remote tools register into the same registry as native tools, with the same permission gate and the same ToolResult shape.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────  THE DIAGRAM  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 02</div>
+      <div class="title">The system, on one page</div>
+    </div>
+    <div class="diagram">
+      <!-- viewBox is poster-shaped; scales to thumbnail and 4K alike -->
+      <svg viewBox="0 0 1600 1900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#000"></path>
+          </marker>
+          <marker id="arrSmall" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 z" fill="#000"></path>
+          </marker>
+          <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="0.6"/>
+          </pattern>
+        </defs>
+
+        <!-- Outer frame ticks (poster gutters) -->
+        <g class="stroke-hair">
+          <line x1="40" y1="40" x2="80" y2="40"/>
+          <line x1="40" y1="40" x2="40" y2="80"/>
+          <line x1="1560" y1="40" x2="1520" y2="40"/>
+          <line x1="1560" y1="40" x2="1560" y2="80"/>
+          <line x1="40" y1="1860" x2="80" y2="1860"/>
+          <line x1="40" y1="1860" x2="40" y2="1820"/>
+          <line x1="1560" y1="1860" x2="1520" y2="1860"/>
+          <line x1="1560" y1="1860" x2="1560" y2="1820"/>
+        </g>
+
+        <!-- Title strip inside the SVG -->
+        <g>
+          <text x="80" y="80" font-size="14" letter-spacing="3">TERN — RUNTIME ARCHITECTURE</text>
+          <line x1="80" y1="92" x2="1520" y2="92" class="stroke-hair"/>
+          <text x="80" y="116" font-size="11" font-style="italic" class="label-serif">14 modules · 4 layers · all dependency arrows point toward canonical types and the agent core</text>
+        </g>
+
+        <!-- ───────────  LAYER 1: USER / CLI ─────────── -->
+        <g>
+          <text x="80" y="170" font-size="11" letter-spacing="2">L1 · ENTRY</text>
+          <line x1="80" y1="180" x2="1520" y2="180" class="stroke-hair"/>
+
+          <!-- M0 CLI -->
+          <rect x="80"  y="200" width="280" height="100" class="stroke-thick fill-paper"/>
+          <text x="100" y="226" font-size="13" font-weight="700">M0  CLI ENTRY</text>
+          <text x="100" y="248" font-size="11">tern run · resume · log · branch</text>
+          <text x="100" y="266" font-size="10.5" class="label-serif">composition root — the only place</text>
+          <text x="100" y="282" font-size="10.5" class="label-serif">that imports concrete adapters</text>
+
+          <!-- M2 TUI -->
+          <rect x="400" y="200" width="380" height="100" class="stroke-thick fill-paper"/>
+          <text x="420" y="226" font-size="13" font-weight="700">M2  TUI · textual</text>
+          <text x="420" y="248" font-size="11">reactive widgets · slash cmds · keybinds</text>
+          <text x="420" y="266" font-size="10.5" class="label-serif">three command modes:</text>
+          <text x="420" y="282" font-size="10.5" class="label-serif">local · local-ui · prompt-injected</text>
+
+          <!-- M14 Commands & keybinds -->
+          <rect x="820" y="200" width="320" height="100" class="stroke fill-paper"/>
+          <text x="840" y="226" font-size="13" font-weight="700">M14  COMMANDS · KEYBINDS</text>
+          <text x="840" y="248" font-size="11">declarative registries</text>
+          <text x="840" y="266" font-size="10.5" class="label-serif">contexts: Global · Chat · History</text>
+          <text x="840" y="282" font-size="10.5" class="label-serif">double-press ctrl+c, mode toggles</text>
+
+          <!-- --print mode -->
+          <rect x="1180" y="200" width="340" height="100" class="stroke-dash fill-paper"/>
+          <text x="1200" y="226" font-size="13" font-weight="700">--print  · NON-INTERACTIVE</text>
+          <text x="1200" y="248" font-size="11">rich.console · pipes · CI/scripted</text>
+          <text x="1200" y="266" font-size="10.5" class="label-serif">same turn loop, no widget tree</text>
+        </g>
+
+        <!-- ───────────  LAYER 2: AGENT CORE ─────────── -->
+        <g>
+          <text x="80" y="360" font-size="11" letter-spacing="2">L2 · AGENT CORE — pure, no I/O</text>
+          <line x1="80" y1="370" x2="1520" y2="370" class="stroke-hair"/>
+
+          <!-- M1 Turn loop -->
+          <rect x="80" y="400" width="700" height="240" class="stroke-thick fill-paper"/>
+          <text x="100" y="430" font-size="15" font-weight="700">M1   TURN LOOP</text>
+          <text x="100" y="454" font-size="11" class="label-serif">async generator · perceive → reason → act → observe</text>
+          <line x1="100" y1="470" x2="760" y2="470" class="stroke-hair"/>
+          <!-- Loop diagram inside M1 -->
+          <g transform="translate(120,500)">
+            <circle cx="60"  cy="60" r="34" class="stroke fill-paper"/>
+            <text   x="60"   y="65" text-anchor="middle" font-size="11">perceive</text>
+            <circle cx="220" cy="60" r="34" class="stroke fill-paper"/>
+            <text   x="220"  y="65" text-anchor="middle" font-size="11">reason</text>
+            <circle cx="380" cy="60" r="34" class="stroke fill-paper"/>
+            <text   x="380"  y="65" text-anchor="middle" font-size="11">act</text>
+            <circle cx="540" cy="60" r="34" class="stroke fill-paper"/>
+            <text   x="540"  y="65" text-anchor="middle" font-size="11">observe</text>
+            <!-- arrows -->
+            <line x1="94"  y1="60" x2="186" y2="60" class="stroke" marker-end="url(#arr)"/>
+            <line x1="254" y1="60" x2="346" y2="60" class="stroke" marker-end="url(#arr)"/>
+            <line x1="414" y1="60" x2="506" y2="60" class="stroke" marker-end="url(#arr)"/>
+            <!-- loop back -->
+            <path d="M 540,94 C 540,150 60,150 60,94" class="stroke" marker-end="url(#arr)"/>
+            <text x="300" y="146" text-anchor="middle" font-size="10" class="label-serif">repeat until Terminal · max_steps · per-turn $ budget</text>
+          </g>
+          <text x="100" y="618" font-size="10.5" class="label-serif">state replaced (not mutated) at every continue site · missing tool-result blocks auto-filled</text>
+
+          <!-- M3 Runtime shape -->
+          <rect x="820" y="400" width="320" height="240" class="stroke-thick fill-paper"/>
+          <text x="840" y="430" font-size="15" font-weight="700">M3  RUNTIME SHAPE</text>
+          <text x="840" y="454" font-size="11" class="label-serif">sub-agent / stage descriptors</text>
+          <line x1="840" y1="470" x2="1120" y2="470" class="stroke-hair"/>
+          <text x="840" y="494" font-size="11">WorkTask {</text>
+          <text x="860" y="514" font-size="11">  goal: str</text>
+          <text x="860" y="534" font-size="11">  inputs: dict</text>
+          <text x="860" y="554" font-size="11">  expected_schema</text>
+          <text x="860" y="574" font-size="11">  parallelizable</text>
+          <text x="860" y="594" font-size="11">  model_tier_hint</text>
+          <text x="860" y="614" font-size="11">  timeout_s</text>
+          <text x="840" y="634" font-size="11">}</text>
+
+          <!-- M4 Provider + cost router -->
+          <rect x="1180" y="400" width="340" height="240" class="stroke-thick fill-paper"/>
+          <text x="1200" y="430" font-size="15" font-weight="700">M4  PROVIDER · D1</text>
+          <text x="1200" y="454" font-size="11" class="label-serif">canonical messages + cost router</text>
+          <line x1="1200" y1="470" x2="1500" y2="470" class="stroke-hair"/>
+          <text x="1200" y="494" font-size="11">CanonicalMessage</text>
+          <text x="1200" y="514" font-size="11">  └─ ContentBlock</text>
+          <text x="1200" y="534" font-size="11">     text · tool_use ·</text>
+          <text x="1200" y="554" font-size="11">     tool_result · think</text>
+          <line x1="1200" y1="570" x2="1500" y2="570" class="stroke-hair"/>
+          <text x="1200" y="592" font-size="10.5" class="label-serif">adapters: anthropic ·</text>
+          <text x="1200" y="608" font-size="10.5" class="label-serif">openai · bedrock · litellm</text>
+          <text x="1200" y="624" font-size="10.5" class="label-serif">router picks per-turn from policy</text>
+        </g>
+
+        <!-- arrows L1 → L2 -->
+        <line x1="220" y1="300" x2="220" y2="400" class="stroke" marker-end="url(#arr)"/>
+        <line x1="590" y1="300" x2="430" y2="400" class="stroke" marker-end="url(#arr)"/>
+        <line x1="980" y1="300" x2="980" y2="400" class="stroke" marker-end="url(#arr)"/>
+
+        <!-- arrow M1 ↔ M3 -->
+        <line x1="780" y1="520" x2="820" y2="520" class="stroke" marker-end="url(#arr)" marker-start="url(#arr)"/>
+        <!-- arrow M3 ↔ M4 -->
+        <line x1="1140" y1="520" x2="1180" y2="520" class="stroke" marker-end="url(#arr)" marker-start="url(#arr)"/>
+        <!-- arrow M1 ↔ M4 (above) -->
+        <path d="M 780,420 C 980,380 1100,380 1180,420" class="stroke-hair" marker-end="url(#arr)"/>
+
+        <!-- ───────────  LAYER 3: CAPABILITIES ─────────── -->
+        <g>
+          <text x="80" y="700" font-size="11" letter-spacing="2">L3 · CAPABILITIES — what the agent can do</text>
+          <line x1="80" y1="710" x2="1520" y2="710" class="stroke-hair"/>
+
+          <!-- M5 Tool surface -->
+          <rect x="80" y="740" width="440" height="240" class="stroke-thick fill-paper"/>
+          <text x="100" y="770" font-size="15" font-weight="700">M5  TOOL SURFACE · sandbox</text>
+          <text x="100" y="794" font-size="11" class="label-serif">uniform Tool Protocol · double-gated permissions</text>
+          <line x1="100" y1="810" x2="500" y2="810" class="stroke-hair"/>
+          <text x="100" y="834" font-size="11">native — read R · write W · mixed M</text>
+          <text x="100" y="854" font-size="11">▌ read_file (R)    write_file (W)</text>
+          <text x="100" y="874" font-size="11">▌ edit_block (W)   bash (M)</text>
+          <text x="100" y="894" font-size="11">▌ glob (R)         grep (R)</text>
+          <text x="100" y="914" font-size="11">▌ ask_user (W-ui)  notes_append (W)</text>
+          <text x="100" y="940" font-size="10.5" class="label-serif">filter at registry · enforce at call site</text>
+          <text x="100" y="958" font-size="10.5" class="label-serif">flags: read_only · concurrency_safe · destructive · reversible</text>
+
+          <!-- M6 Skills -->
+          <rect x="560" y="740" width="320" height="240" class="stroke-thick fill-paper"/>
+          <text x="580" y="770" font-size="15" font-weight="700">M6  SKILLS · D2</text>
+          <text x="580" y="794" font-size="11" class="label-serif">SKILL.md as plugin</text>
+          <line x1="580" y1="810" x2="860" y2="810" class="stroke-hair"/>
+          <text x="580" y="834" font-size="11">discovered at startup</text>
+          <text x="580" y="854" font-size="11">retrieval-shaped per turn</text>
+          <text x="580" y="874" font-size="11">scoped tool view</text>
+          <text x="580" y="900" font-size="10.5" class="label-serif">depends on M5 tool registry interface</text>
+          <text x="580" y="918" font-size="10.5" class="label-serif">never imports M4 or M7</text>
+          <text x="580" y="950" font-size="10.5" class="label-serif">routes to wikis (don't cut info, retrieve)</text>
+
+          <!-- M9 Browser tool -->
+          <rect x="920" y="740" width="280" height="240" class="stroke-thick fill-paper"/>
+          <text x="940" y="770" font-size="15" font-weight="700">M9  BROWSER · D5</text>
+          <text x="940" y="794" font-size="11" class="label-serif">browser-use sub-agent</text>
+          <line x1="940" y1="810" x2="1180" y2="810" class="stroke-hair"/>
+          <text x="940" y="834" font-size="11">BrowserSession × 1</text>
+          <text x="940" y="854" font-size="11">  per tern session</text>
+          <text x="940" y="876" font-size="11">Agent × 1 per call</text>
+          <text x="940" y="900" font-size="10.5" class="label-serif">CDP, not Playwright</text>
+          <text x="940" y="916" font-size="10.5" class="label-serif">do NOT re-loop the inner</text>
+          <text x="940" y="932" font-size="10.5" class="label-serif">Agent · it IS the sub-agent</text>
+
+          <!-- M10 MCP -->
+          <rect x="1240" y="740" width="280" height="240" class="stroke-thick fill-paper"/>
+          <text x="1260" y="770" font-size="15" font-weight="700">M10  MCP CLIENT · D6</text>
+          <text x="1260" y="794" font-size="11" class="label-serif">ClientSessionGroup</text>
+          <line x1="1260" y1="810" x2="1500" y2="810" class="stroke-hair"/>
+          <text x="1260" y="834" font-size="11">stdio · http · sse</text>
+          <text x="1260" y="854" font-size="11">tools · prompts · resources</text>
+          <text x="1260" y="876" font-size="11">OAuth · token storage</text>
+          <text x="1260" y="900" font-size="10.5" class="label-serif">remote tools registered into</text>
+          <text x="1260" y="916" font-size="10.5" class="label-serif">M5 with namespace prefix</text>
+          <text x="1260" y="932" font-size="10.5" class="label-serif">same permission gate as native</text>
+        </g>
+
+        <!-- M5 ↔ M3 -->
+        <line x1="300" y1="740" x2="300" y2="640" class="stroke" marker-end="url(#arr)"/>
+        <!-- M6 ↔ M5 -->
+        <line x1="560" y1="860" x2="520" y2="860" class="stroke" marker-end="url(#arr)" marker-start="url(#arr)"/>
+        <!-- M9 → M5 -->
+        <line x1="920" y1="900" x2="520" y2="900" class="stroke-hair" marker-end="url(#arr)"/>
+        <!-- M10 → M5 -->
+        <line x1="1240" y1="940" x2="520" y2="940" class="stroke-hair" marker-end="url(#arr)"/>
+
+        <!-- ───────────  LAYER 4: STATE / ARTIFACTS ─────────── -->
+        <g>
+          <text x="80" y="1040" font-size="11" letter-spacing="2">L4 · STATE &amp; ARTIFACTS — append-only, content-addressed</text>
+          <line x1="80" y1="1050" x2="1520" y2="1050" class="stroke-hair"/>
+
+          <!-- M7 Session/replay -->
+          <rect x="80" y="1080" width="660" height="280" class="stroke-thick fill-paper"/>
+          <text x="100" y="1110" font-size="15" font-weight="700">M7  SESSION · REPLAY · BRANCH · D3</text>
+          <text x="100" y="1134" font-size="11" class="label-serif">git-style content-addressed object store</text>
+          <line x1="100" y1="1150" x2="720" y2="1150" class="stroke-hair"/>
+          <text x="100" y="1176" font-size="11">~/.tern/projects/&lt;sanitized-cwd&gt;/</text>
+          <text x="120" y="1196" font-size="11">objects/&lt;sha[:2]&gt;/&lt;sha[2:]&gt;     ← turn blobs (zstd JSON)</text>
+          <text x="120" y="1216" font-size="11">refs/sessions/&lt;uuid&gt;            ← head turn hash</text>
+          <text x="120" y="1236" font-size="11">refs/branches/&lt;name&gt;            ← alt heads</text>
+          <text x="120" y="1256" font-size="11">transcripts/&lt;uuid&gt;.jsonl         ← append-only log</text>
+          <line x1="100" y1="1272" x2="720" y2="1272" class="stroke-hair"/>
+          <text x="100" y="1294" font-size="10.5" class="label-serif">Turn = { parent_hash, role, content, tool_calls, tool_results, model_id, cost, ts, seed }</text>
+          <text x="100" y="1312" font-size="10.5" class="label-serif">hash = sha256(canonical-json) · branch = ref → any past turn · replay = walk parents, re-feed</text>
+          <text x="100" y="1340" font-size="10.5" class="label-serif">SQLite index is DERIVED · object store is the system of record</text>
+
+          <!-- M8 Notes artifact -->
+          <rect x="780" y="1080" width="340" height="280" class="stroke-thick fill-paper"/>
+          <text x="800" y="1110" font-size="15" font-weight="700">M8  NOTES · D4</text>
+          <text x="800" y="1134" font-size="11" class="label-serif">live HTML implementation note</text>
+          <line x1="800" y1="1150" x2="1100" y2="1150" class="stroke-hair"/>
+          <text x="800" y="1176" font-size="11">notes_append (tool)</text>
+          <text x="800" y="1196" font-size="11">notes_render (M11 hook)</text>
+          <text x="800" y="1216" font-size="11">→ docs/notes.html</text>
+          <text x="800" y="1244" font-size="10.5" class="label-serif">append-only writes</text>
+          <text x="800" y="1260" font-size="10.5" class="label-serif">redacted by M13 before write</text>
+          <text x="800" y="1276" font-size="10.5" class="label-serif">runtime regen, not just teach</text>
+          <line x1="800" y1="1292" x2="1100" y2="1292" class="stroke-hair"/>
+          <!-- mini icon: a tiny page -->
+          <rect x="800" y="1306" width="60" height="40" class="stroke-hair fill-paper"/>
+          <line x1="808" y1="1316" x2="852" y2="1316" class="stroke-hair"/>
+          <line x1="808" y1="1322" x2="848" y2="1322" class="stroke-hair"/>
+          <line x1="808" y1="1328" x2="852" y2="1328" class="stroke-hair"/>
+          <line x1="808" y1="1334" x2="840" y2="1334" class="stroke-hair"/>
+          <text x="876" y="1330" font-size="10.5" class="label-serif">render() reads turn objects</text>
+
+          <!-- M11 Observability -->
+          <rect x="1160" y="1080" width="360" height="280" class="stroke-thick fill-paper"/>
+          <text x="1180" y="1110" font-size="15" font-weight="700">M11  OBSERVABILITY</text>
+          <text x="1180" y="1134" font-size="11" class="label-serif">trace tree · spans · NDJSON</text>
+          <line x1="1180" y1="1150" x2="1500" y2="1150" class="stroke-hair"/>
+          <text x="1180" y="1176" font-size="11">spans (per turn):</text>
+          <text x="1180" y="1196" font-size="11">  context_build · llm_call</text>
+          <text x="1180" y="1216" font-size="11">  tool_select · tool_exec</text>
+          <text x="1180" y="1236" font-size="11">  notes_write · output_validate</text>
+          <line x1="1180" y1="1252" x2="1500" y2="1252" class="stroke-hair"/>
+          <text x="1180" y="1274" font-size="10.5" class="label-serif">cost attribution per span</text>
+          <text x="1180" y="1290" font-size="10.5" class="label-serif">replay viewer renders the SAME tree</text>
+          <text x="1180" y="1306" font-size="10.5" class="label-serif">drift alert: tokens-per-turn &gt; 130%</text>
+          <text x="1180" y="1334" font-size="10.5" class="label-serif">ships in Phase 1, not last</text>
+        </g>
+
+        <!-- M1 → M7 (write turns) -->
+        <line x1="430" y1="640" x2="430" y2="1080" class="stroke" marker-end="url(#arr)"/>
+        <text x="438" y="860" font-size="10" class="label-serif">seal_turn(hash)</text>
+
+        <!-- M11 ← M1 (spans) -->
+        <line x1="1340" y1="640" x2="1340" y2="1080" class="stroke" marker-end="url(#arr)"/>
+        <text x="1348" y="860" font-size="10" class="label-serif">spans · cost</text>
+
+        <!-- M11 → M4 (cost router reads) -->
+        <path d="M 1500,1080 C 1560,900 1560,700 1500,640" class="stroke-hair" marker-end="url(#arr)"/>
+        <text x="1530" y="860" font-size="10" class="label-serif" transform="rotate(90 1530 860)">router reads cost</text>
+
+        <!-- M8 ← M7 (notes regen reads turns) -->
+        <line x1="780" y1="1200" x2="740" y2="1200" class="stroke" marker-end="url(#arr)"/>
+
+        <!-- ───────────  PERIMETER: SECURITY / RELIABILITY ─────────── -->
+        <g>
+          <text x="80" y="1430" font-size="11" letter-spacing="2">L5 · CROSS-CUTTING — wraps every call, every write, every turn</text>
+          <line x1="80" y1="1440" x2="1520" y2="1440" class="stroke-hair"/>
+
+          <!-- M13 Security -->
+          <rect x="80" y="1470" width="700" height="200" class="stroke-thick fill-paper"/>
+          <text x="100" y="1500" font-size="15" font-weight="700">M13  SECURITY</text>
+          <text x="100" y="1524" font-size="11" class="label-serif">trust boundary = the file system</text>
+          <line x1="100" y1="1540" x2="760" y2="1540" class="stroke-hair"/>
+          <text x="100" y="1564" font-size="11">▌ provenance tagging — user vs file vs tool-output in context</text>
+          <text x="100" y="1584" font-size="11">▌ entropy-aware redaction — covers metadata, paths, args (fail-loud)</text>
+          <text x="100" y="1604" font-size="11">▌ dangerous-action gate — rm -rf, force-push, edit outside cwd</text>
+          <text x="100" y="1624" font-size="11">▌ approval prompt for write/destructive · auto-allow read</text>
+          <text x="100" y="1644" font-size="10.5" class="label-serif">policy file as code · audit log of every write</text>
+
+          <!-- M12 Reliability -->
+          <rect x="820" y="1470" width="700" height="200" class="stroke-thick fill-paper"/>
+          <text x="840" y="1500" font-size="15" font-weight="700">M12  RELIABILITY</text>
+          <text x="840" y="1524" font-size="11" class="label-serif">cynical software · failure inevitable</text>
+          <line x1="840" y1="1540" x2="1500" y2="1540" class="stroke-hair"/>
+          <text x="840" y="1564" font-size="11">▌ timeout + result-size cap on every tool · provider · MCP call</text>
+          <text x="840" y="1584" font-size="11">▌ per-provider circuit breaker · per-tool dedup detection</text>
+          <text x="840" y="1604" font-size="11">▌ atomic edits (write-tmp + rename + journal) · per-step cleanup try/except</text>
+          <text x="840" y="1624" font-size="11">▌ component restart over full restart · queue-and-delay retry</text>
+          <text x="840" y="1644" font-size="10.5" class="label-serif">crash-safe edits ARE a security control · partial-edit = attack surface</text>
+        </g>
+
+        <!-- ───────────  CANONICAL BOUNDARY CALLOUT ─────────── -->
+        <g transform="translate(80,1730)">
+          <rect x="0" y="0" width="1440" height="120" class="stroke-thick fill-paper"/>
+          <text x="20" y="32" font-size="12" letter-spacing="2">THE LOCK · ONE INVARIANT THE WHOLE SYSTEM HANGS ON</text>
+          <line x1="20" y1="44" x2="1420" y2="44" class="stroke-hair"/>
+          <text x="20" y="74" font-size="20" class="label-serif">Internal canonical message log ≠ provider wire format.</text>
+          <text x="20" y="100" font-size="12.5">M3 talks canonical only · M4 owns the adapters · D1 cost router and D3 replay both read from canonical · adding a provider = one new file.</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ───────────────  MODULE INDEX  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 03</div>
+      <div class="title">Module index</div>
+    </div>
+    <table class="mod-index">
+      <thead>
+        <tr><th>id</th><th>name</th><th>responsibility</th><th>D</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="id">M0</td>  <td class="nm">CLI entry &amp; bootstrap</td><td>Composition root. Parses args, builds the dependency graph, the only place that imports concrete adapters and stores.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M1</td>  <td class="nm">Agent turn loop</td>      <td>Async generator. Perceive → reason → act → observe. State replaced (not mutated). Max steps. Per-turn dollar budget.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M2</td>  <td class="nm">TUI · textual</td>        <td>Reactive widget tree. Slash commands, keybindings, --print mode via rich. Tool-specific render() for rich output.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M3</td>  <td class="nm">Runtime shape</td>        <td>Sub-agent contract. WorkTask schema with goal, expected_schema, parallelizable, model_tier_hint, timeout.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M4</td>  <td class="nm">Provider &amp; cost router</td><td>Canonical messages + ProviderAdapter Protocol. Per-turn model selection from policy. litellm as one backend.</td><td class="tag">D1</td></tr>
+        <tr><td class="id">M5</td>  <td class="nm">Tool surface &amp; sandbox</td><td>Uniform Tool Protocol. Double-gated permissions. Read/write/concurrency_safe/destructive/reversible flags.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M6</td>  <td class="nm">Skills runtime</td>       <td>SKILL.md loader. Discovered at startup. Retrieval-shaped per turn. Scoped tool view. Routes to wikis.</td><td class="tag">D2</td></tr>
+        <tr><td class="id">M7</td>  <td class="nm">Session, replay, branch</td><td>Git-style object store. Append-only JSONL transcripts. Refs &amp; branches. Replay = walk parents, re-feed canonical.</td><td class="tag">D3</td></tr>
+        <tr><td class="id">M8</td>  <td class="nm">Live HTML notes artifact</td><td>notes_append tool + notes_render hook. Append-only. Redacted by M13. Reads turn objects to regen at runtime.</td><td class="tag">D4</td></tr>
+        <tr><td class="id">M9</td>  <td class="nm">Browser tool</td>         <td>browser-use, one BrowserSession per tern session. Agent = sub-agent. Maps AgentHistoryList → ToolResult.</td><td class="tag">D5</td></tr>
+        <tr><td class="id">M10</td> <td class="nm">MCP client</td>           <td>ClientSessionGroup. stdio/http/sse. Remote tools register into M5 with namespace prefix and same permission gate.</td><td class="tag">D6</td></tr>
+        <tr><td class="id">M11</td> <td class="nm">Observability</td>        <td>Trace tree of spans, NDJSON, cost attribution per span. Same data structure replay viewer renders. Drift alerts.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M12</td> <td class="nm">Reliability</td>          <td>Timeouts, breakers, bulkheads, atomic edits, journal, queue-and-delay retry, component restart over full restart.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M13</td> <td class="nm">Security</td>             <td>Provenance tagging, entropy-aware redaction, dangerous-action gate, approval prompts, audit log of every write.</td><td class="tag">—</td></tr>
+        <tr><td class="id">M14</td> <td class="nm">Slash commands &amp; keybinds</td><td>Declarative registries. Three command modes: local, local-ui, prompt-injected. Context-scoped keybindings.</td><td class="tag">—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ───────────────  PULL QUOTE  ─────────────── -->
+  <div class="pull">
+    <blockquote>
+      “Internal canonical message log <em>≠</em> provider wire format.<br>
+       Two pure functions translate. Everything else follows.”
+    </blockquote>
+    <div class="attr">— THE ONE LOCK</div>
+  </div>
+
+  <!-- ───────────────  INVARIANTS / CHANGES  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 04</div>
+      <div class="title">What we lift, what we change</div>
+    </div>
+    <div class="columns-2">
+      <div class="col">
+        <h3>Five invariants we preserve from prior art</h3>
+        <ul>
+          <li><span class="k">i.</span> Turn loop = async generator; tool execution = sub-generator. State replaced, not mutated.</li>
+          <li><span class="k">ii.</span> Tools are uniform: name + input_schema + read_only + concurrency_safe + call. Permissions filtered at registry, enforced at call site.</li>
+          <li><span class="k">iii.</span> Transcripts append-only JSONL at <code>~/.tern/projects/&lt;sanitized&gt;/&lt;uuid&gt;.jsonl</code>. Resumable by replay.</li>
+          <li><span class="k">iv.</span> Reflection retry loop: parse-error / lint-error / test-failure flows back as next user turn, capped by max_reflections.</li>
+          <li><span class="k">v.</span> Few-shot exemplar in the system prompt that uses the exact edit format on a toy task. Compliance follows from showing.</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Three things we deliberately change</h3>
+        <ul>
+          <li><span class="k">a.</span> Drop ink + yoga + React. Use textual. Python-native reactive widget tree, CSS theming, mature. Bonus: HTML inspector feeds D4 notes artifact.</li>
+          <li><span class="k">b.</span> Replace build-time feature flags with runtime plugins + skills. Disk-discovered at startup, not compiled in. Keeps the binary small without sacrificing modularity.</li>
+          <li><span class="k">c.</span> Provider abstraction owned by the cost router, not by litellm directly. Per-turn model pick. Browser-use and MCP plug into the same registry, not special-cased subsystems.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────  BUILD ORDER  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 05</div>
+      <div class="title">Build order</div>
+    </div>
+    <div class="columns-3">
+      <div class="col">
+        <h3>Phase 1 · skeleton</h3>
+        <ul>
+          <li><span class="k">1.</span> M11 first — observability is bedrock; everything else needs spans to debug and cost-route</li>
+          <li><span class="k">2.</span> M0 + M1 + M4 — turn loop + canonical messages + one provider, end-to-end one-shot</li>
+          <li><span class="k">3.</span> M5 + M2 — a couple tools and the textual TUI; the agent becomes interactive</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Phase 2 · differentiators</h3>
+        <ul>
+          <li><span class="k">4.</span> M7 — session + replay + branch BEFORE M6/M8 (replay needs the object store first)</li>
+          <li><span class="k">5.</span> M6 + M8 — skills + live notes artifact; the system starts feeling unique</li>
+          <li><span class="k">6.</span> M9 + M10 — browser and MCP; tool surface lights up</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Phase 3 · hardening</h3>
+        <ul>
+          <li><span class="k">7.</span> M12 + M13 formalized — timeouts, breakers, redaction, policy file</li>
+          <li><span class="k">8.</span> M14 polish — slash commands, keybindings, --print mode</li>
+          <li><span class="k">9.</span> Walkthrough authored from <code>.scratch/walkthrough-notes/</code>, captured during 1–8</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────  ANTI-PATTERNS  ─────────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div class="num">§ 06</div>
+      <div class="title">Things this design forbids</div>
+    </div>
+    <div class="columns-2">
+      <div class="col">
+        <ul>
+          <li><span class="k">×</span> The LLM Fallacy. Generated code that looks fine and runs but lacks failure handling, dependency order, or observability. Reject in PR.</li>
+          <li><span class="k">×</span> Observability as afterthought. M11 ships in Phase 1, not last.</li>
+          <li><span class="k">×</span> A <code>BaseProviderAdapter</code> with shared logic. Adapters are siblings; share only the canonical type.</li>
+        </ul>
+      </div>
+      <div class="col">
+        <ul>
+          <li><span class="k">×</span> Global state in core. Pass session, store, adapter explicitly.</li>
+          <li><span class="k">×</span> Skills hardcoded into core. Disk-discovered at runtime; never imported.</li>
+          <li><span class="k">×</span> LLM-generated commit messages. Deterministic <code>tern: &lt;tool&gt; on &lt;files&gt; · turn &lt;id&gt;</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <div>TERN · OPEN FOUNDATION · ARCHITECTURE v0</div>
+    <div>SET IN MONO + SERIF · BLACK ON WHITE</div>
+    <div>SCALES: THUMBNAIL · A3 · 4K POSTER</div>
+  </footer>
+
+</div>
+</body>
+</html>
