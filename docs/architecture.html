@@ -343,7 +343,7 @@
     </div>
     <div class="diagram">
       <!-- viewBox is poster-shaped; scales to thumbnail and 4K alike -->
-      <svg viewBox="0 0 1600 1900" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox="0 0 1600 2160" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#000"></path>
@@ -362,17 +362,17 @@
           <line x1="40" y1="40" x2="40" y2="80"/>
           <line x1="1560" y1="40" x2="1520" y2="40"/>
           <line x1="1560" y1="40" x2="1560" y2="80"/>
-          <line x1="40" y1="1860" x2="80" y2="1860"/>
-          <line x1="40" y1="1860" x2="40" y2="1820"/>
-          <line x1="1560" y1="1860" x2="1520" y2="1860"/>
-          <line x1="1560" y1="1860" x2="1560" y2="1820"/>
+          <line x1="40" y1="2120" x2="80" y2="2120"/>
+          <line x1="40" y1="2120" x2="40" y2="2080"/>
+          <line x1="1560" y1="2120" x2="1520" y2="2120"/>
+          <line x1="1560" y1="2120" x2="1560" y2="2080"/>
         </g>
 
         <!-- Title strip inside the SVG -->
         <g>
           <text x="80" y="80" font-size="14" letter-spacing="3">TERN — RUNTIME ARCHITECTURE</text>
           <line x1="80" y1="92" x2="1520" y2="92" class="stroke-hair"/>
-          <text x="80" y="116" font-size="11" font-style="italic" class="label-serif">14 modules · 4 layers · all dependency arrows point toward canonical types and the agent core</text>
+          <text x="80" y="116" font-size="11" font-style="italic" class="label-serif">20 modules · 5 layers + breadth ladder · all dependency arrows point toward canonical types and the agent core</text>
         </g>
 
         <!-- ───────────  LAYER 1: USER / CLI ─────────── -->
@@ -642,8 +642,72 @@
           <text x="840" y="1644" font-size="10.5" class="label-serif">cynical software · failure inevitable · component-level not full restart</text>
         </g>
 
+        <!-- ───────────  LAYER 6: BREADTH LADDER (S15–S20) ─────────── -->
+        <g>
+          <text x="80" y="1720" font-size="11" letter-spacing="2">L6 · BREADTH LADDER — Hermes-shaped scope (S15 → S20)</text>
+          <line x1="80" y1="1730" x2="1520" y2="1730" class="stroke-hair"/>
+
+          <!-- M15 Persistent memory -->
+          <rect x="80" y="1750" width="340" height="150" class="stroke fill-paper"/>
+          <text x="100" y="1776" font-size="13" font-weight="700">M15  PERSISTENT MEMORY</text>
+          <text x="100" y="1798" font-size="11" class="label-serif">Hermes split: MEMORY.md + USER.md</text>
+          <text x="100" y="1820" font-size="11">~/.tern/memory/MEMORY.md (~2.2KB)</text>
+          <text x="100" y="1838" font-size="11">~/.tern/memory/USER.md (~1.4KB)</text>
+          <text x="100" y="1858" font-size="11">tool: memory(add|replace|remove)</text>
+          <text x="100" y="1882" font-size="10.5" class="label-serif">injected once into system prompt</text>
+
+          <!-- M16 Skill self-management -->
+          <rect x="440" y="1750" width="340" height="150" class="stroke fill-paper"/>
+          <text x="460" y="1776" font-size="13" font-weight="700">M16  SKILL SELF-MGMT</text>
+          <text x="460" y="1798" font-size="11" class="label-serif">agent edits its own skills</text>
+          <text x="460" y="1820" font-size="11">tool: skill_manage</text>
+          <text x="460" y="1838" font-size="11">create · patch · edit · delete</text>
+          <text x="460" y="1858" font-size="11">+ notes_append fallback parser</text>
+          <text x="460" y="1882" font-size="10.5" class="label-serif">--reflect-skills hook (gated)</text>
+
+          <!-- M17 Model breadth -->
+          <rect x="800" y="1750" width="340" height="150" class="stroke fill-paper"/>
+          <text x="820" y="1776" font-size="13" font-weight="700">M17  MODEL BREADTH · D1</text>
+          <text x="820" y="1798" font-size="11" class="label-serif">populated cost router</text>
+          <text x="820" y="1820" font-size="11">openai · bedrock_nova · kimi · xai</text>
+          <text x="820" y="1838" font-size="11">tern config set default_model</text>
+          <text x="820" y="1858" font-size="11">per-model tool serializer</text>
+          <text x="820" y="1882" font-size="10.5" class="label-serif">Kimi: OpenAI-style fn wrapper on Bedrock</text>
+
+          <!-- M18 Vision -->
+          <rect x="1160" y="1750" width="360" height="150" class="stroke fill-paper"/>
+          <text x="1180" y="1776" font-size="13" font-weight="700">M18  VISION INPUT</text>
+          <text x="1180" y="1798" font-size="11" class="label-serif">ImageBlock through canonical layer</text>
+          <text x="1180" y="1820" font-size="11">tool: screenshot</text>
+          <text x="1180" y="1838" font-size="11">macOS screencapture · Linux grim</text>
+          <text x="1180" y="1858" font-size="11">attached to bedrock + openai adapters</text>
+          <text x="1180" y="1882" font-size="10.5" class="label-serif">"what's on my screen" e2e</text>
+
+          <!-- M19 Search + Browser -->
+          <rect x="80" y="1920" width="700" height="140" class="stroke fill-paper"/>
+          <text x="100" y="1946" font-size="13" font-weight="700">M19  SEARCH + BROWSER · D5 (real)</text>
+          <text x="100" y="1968" font-size="11" class="label-serif">web_search via Tavily · web_fetch via Playwright (cache ~/.tern/cache/web/)</text>
+          <text x="100" y="1990" font-size="11">browser_navigate · click · type · snapshot · vision</text>
+          <text x="100" y="2010" font-size="11">one persistent Playwright context per session</text>
+          <text x="100" y="2034" font-size="10.5" class="label-serif">click + type gated destructive · same permission model as bash</text>
+
+          <!-- M20 Self-curation -->
+          <rect x="800" y="1920" width="720" height="140" class="stroke fill-paper"/>
+          <text x="820" y="1946" font-size="13" font-weight="700">M20  SELF-CURATION + SHIP</text>
+          <text x="820" y="1968" font-size="11" class="label-serif">tern curate · prune unused skills + stale memory · last_used_at stamp</text>
+          <text x="820" y="1990" font-size="11">M14 polish absorbed: slash commands · keybindings · --print mode</text>
+          <text x="820" y="2010" font-size="11">pipx install tern · walkthrough authored from .scratch/walkthrough-notes/</text>
+          <text x="820" y="2034" font-size="10.5" class="label-serif">user approves before delete · M15 hooks: stamp on read, prune on cadence</text>
+        </g>
+
+        <!-- L6 dependency arrows: each new module hangs off existing layers -->
+        <line x1="250" y1="1750" x2="250" y2="980" class="stroke-hair" marker-end="url(#arr)"/>
+        <line x1="610" y1="1750" x2="610" y2="980" class="stroke-hair" marker-end="url(#arr)"/>
+        <line x1="970" y1="1750" x2="1340" y2="640"  class="stroke-hair" marker-end="url(#arr)"/>
+        <line x1="1340" y1="1750" x2="1340" y2="980" class="stroke-hair" marker-end="url(#arr)"/>
+
         <!-- ───────────  CANONICAL BOUNDARY CALLOUT ─────────── -->
-        <g transform="translate(80,1730)">
+        <g transform="translate(80,2080)">
           <rect x="0" y="0" width="1440" height="120" class="stroke-thick fill-paper"/>
           <text x="20" y="32" font-size="12" letter-spacing="2">THE LOCK · ONE INVARIANT THE WHOLE SYSTEM HANGS ON</text>
           <line x1="20" y1="44" x2="1420" y2="44" class="stroke-hair"/>
