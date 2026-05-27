@@ -34,7 +34,7 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S13 M9 + M10 browser + MCP (D5 + D6) | ✅ done | 2026-05-28 |
 | | S14 M12 + M13 reliability + security + tool parity | ✅ done | 2026-05-28 |
 | **▶** | **S15 persistent memory + skill self-mgmt + notes-fix** | **next** | — |
-| | S16 model breadth (openai, nova, kimi, xai) + cost router populated | — | — |
+| | S16 model breadth (openai, nova, kimi, xai) + cost router populated | 2026-05-28 | ✅ |
 | | S17 vision (image input + screenshot tool) | — | — |
 | | S18 real search engine + browser_navigate/click/type | — | — |
 | | S19 self-curation (`tern curate`) | — | — |

@@ -220,8 +220,35 @@ class BedrockAnthropicAdapter:
         raw_bytes = result["body"].read()
         decoded = json.loads(raw_bytes.decode("utf-8"))
         response = self.from_wire(decoded)
-        self.last_response_message = response.message
-        return response
+        # S16: fold pricing in so the cost banner shows real $ for Anthropic too.
+        from tern.core.pricing import cost_for
+        usd_in, usd_out = cost_for(self.model_id, response.cost.input_tokens, response.cost.output_tokens)
+        priced_cost = Cost(
+            input_tokens=response.cost.input_tokens,
+            output_tokens=response.cost.output_tokens,
+            usd_in=usd_in,
+            usd_out=usd_out,
+        )
+        priced_msg = CanonicalMessage(
+            role=response.message.role,
+            content=response.message.content,
+            metadata=Metadata(
+                schema_version=response.message.metadata.schema_version,
+                ts=response.message.metadata.ts,
+                model_id=self.model_id,
+                cost=priced_cost,
+                seed=response.message.metadata.seed,
+                provenance=response.message.metadata.provenance,
+            ),
+        )
+        priced = ProviderResponse(
+            message=priced_msg,
+            stop_reason=response.stop_reason,
+            cost=priced_cost,
+            raw_id=response.raw_id,
+        )
+        self.last_response_message = priced_msg
+        return priced
 
     # ---- stream (side-effecting; boto3 streaming) -------------------------
 
@@ -354,11 +381,13 @@ class BedrockAnthropicAdapter:
                     ToolCallBlock(id=tb["id"], name=tb["name"], args=args)
                 )
 
+        from tern.core.pricing import cost_for
+        usd_in, usd_out = cost_for(self.model_id, usage_in, usage_out)
         cost = Cost(
             input_tokens=usage_in,
             output_tokens=usage_out,
-            usd_in=0.0,
-            usd_out=0.0,
+            usd_in=usd_in,
+            usd_out=usd_out,
         )
         message = CanonicalMessage(
             role="assistant",

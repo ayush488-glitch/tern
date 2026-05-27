@@ -116,6 +116,13 @@ def run(
         "-p",
         help="Routing purpose: arch, code, lint, boilerplate.",
     ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="Override model id for this turn (e.g. gpt-5-mini, "
+             "us.amazon.nova-lite-v1:0). Wins over --purpose and config.",
+    ),
     max_tokens: int = typer.Option(1024, "--max-tokens", help="Response cap."),
     cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
 ) -> None:
@@ -158,7 +165,19 @@ def run(
         )
         raise typer.Exit(code=2)
     turn_purpose = _PURPOSE_ALIASES[purpose_key]
-    adapter = select_adapter(turn_purpose)
+
+    # Model selection precedence: --model > config default_model > purpose default
+    from tern.core.config import get_config
+    from tern.core.routing import adapter_for_model
+    chosen_model = model or get_config("default_model")
+    if chosen_model:
+        try:
+            adapter = adapter_for_model(chosen_model)
+        except ValueError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=2) from exc
+    else:
+        adapter = select_adapter(turn_purpose)
 
     # ---- D2 / S11: skills runtime --------------------------------------
     skills = load_skills(cwd)
@@ -687,3 +706,78 @@ def notes_cmd(
         import webbrowser
 
         webbrowser.open(path.as_uri())
+
+
+# ===========================================================================
+# S16: model breadth — config + models commands
+# ===========================================================================
+
+
+config_app = typer.Typer(help="Manage tern config (default model, etc.).")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("set")
+def config_set(key: str = typer.Argument(..., help="Config key (e.g. default_model, OPENAI_API_KEY)."),
+               value: str = typer.Argument(..., help="Value to store.")) -> None:
+    """Set a config value. Secret keys (e.g. OPENAI_API_KEY) go to ~/.tern/secrets.json (chmod 600).
+    Non-secret keys (e.g. default_model) go to ~/.tern/config.json."""
+    from tern.core.config import set_config, valid_keys
+    from tern.core.secrets import set_secret
+
+    # Heuristic: anything ending in _KEY / _TOKEN / _SECRET is treated as a secret.
+    if key.endswith(("_KEY", "_TOKEN", "_SECRET")):
+        set_secret(key, value)
+        typer.secho(f"saved {key} -> ~/.tern/secrets.json", fg=typer.colors.GREEN)
+        return
+    if key not in valid_keys():
+        typer.secho(
+            f"unknown config key '{key}'. valid: {', '.join(valid_keys())} "
+            f"(or any *_KEY / *_TOKEN / *_SECRET).",
+            fg=typer.colors.RED, err=True,
+        )
+        raise typer.Exit(code=2)
+    set_config(key, value)
+    typer.secho(f"set {key} = {value}", fg=typer.colors.GREEN)
+
+
+@config_app.command("get")
+def config_get(key: str = typer.Argument(..., help="Config key.")) -> None:
+    from tern.core.config import get_config
+    val = get_config(key)
+    if val is None:
+        typer.secho(f"{key} is not set", fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(code=1)
+    typer.echo(val)
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Show current non-secret config + names of stored secrets."""
+    from tern.core.config import list_config
+    from tern.core.secrets import list_secret_names
+
+    cfg = list_config()
+    if cfg:
+        typer.secho("config:", bold=True)
+        for k, v in sorted(cfg.items()):
+            typer.echo(f"  {k} = {v}")
+    else:
+        typer.secho("config: (empty)", fg=typer.colors.BRIGHT_BLACK)
+
+    secrets = list_secret_names()
+    if secrets:
+        typer.secho("\nsecrets (names only):", bold=True)
+        for name in secrets:
+            typer.echo(f"  {name}")
+
+
+@app.command("models")
+def models_cmd() -> None:
+    """List supported model ids with $/1M pricing."""
+    from tern.core.pricing import known_models, pricing_for
+    typer.secho(f"{'model_id':<55}  {'$/1M in':>8}  {'$/1M out':>9}", bold=True)
+    typer.echo("-" * 78)
+    for mid in known_models():
+        p = pricing_for(mid)
+        typer.echo(f"{mid:<55}  {p.usd_in_per_m:>8.3f}  {p.usd_out_per_m:>9.3f}")
