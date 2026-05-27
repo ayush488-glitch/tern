@@ -328,3 +328,19 @@ def test_complete_calls_bedrock_runtime_invoke_model_and_returns_provider_respon
     assert kwargs["modelId"] == "anthropic.claude-sonnet-4-20250514-v1:0"
     assert resp.message.content[0] == TextBlock(text="from bedrock")
     assert resp.stop_reason == "end_turn"
+
+
+
+def test_tool_result_failure_with_empty_content_falls_back_to_error() -> None:
+    """Bedrock rejects empty content when is_error=true. Adapter must backfill."""
+    from tern.adapters.bedrock_anthropic import _tool_result_to_wire
+    from tern.core.canonical import ToolResultBlock
+
+    b = ToolResultBlock(call_id="t1", ok=False, content="", error="path escapes repo root")
+    wire = _tool_result_to_wire(b)
+    assert wire["is_error"] is True
+    assert wire["content"] == "path escapes repo root"
+
+    b2 = ToolResultBlock(call_id="t2", ok=False, content="", error=None)
+    wire2 = _tool_result_to_wire(b2)
+    assert wire2["content"]  # never empty

@@ -461,10 +461,15 @@ def _map_message(msg: CanonicalMessage) -> tuple[str, list[dict[str, Any]]]:
 
 
 def _tool_result_to_wire(b: ToolResultBlock) -> dict[str, Any]:
+    # Bedrock rejects empty content when is_error=true. Fall back to error text,
+    # then a stub, so the wire shape is always non-empty for failures.
+    content = b.content
+    if not b.ok and not content:
+        content = b.error or "tool failed (no detail)"
     out: dict[str, Any] = {
         "type": "tool_result",
         "tool_use_id": b.call_id,
-        "content": b.content,
+        "content": content,
     }
     if not b.ok:
         out["is_error"] = True

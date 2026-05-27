@@ -78,3 +78,4 @@ Original S15 (M14 polish) and S16 (walkthrough) collapse into S20. New S15–S19
 Symptom: HTML transcript present, "notes" section empty. Root cause: model emits literal `<notes_append>...</notes_append>` text as llm_text_delta events instead of a structured tool_use block; loop never sees a ToolCallBlock so the JSONL row never gets appended. Fix slated for S15: tighten tool description + add canonical-layer fallback parser that lifts the pseudo-XML into a synthetic ToolCallBlock. JSONL stays single source of truth for notes_render.
 ## [2026-05-28] session-end | S15 memory · skills self-management · notes_append fix · self-curation v0
 ## [2026-05-28] session-end | S16 multi-model + config + pricing
+## [2026-05-28] fix | bedrock_anthropic _tool_result_to_wire empty content + test_skills memory bleed

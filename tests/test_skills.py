@@ -152,7 +152,7 @@ def test_render_active_block_includes_full_body(
 
 
 def test_build_system_prompt_empty_when_no_skills() -> None:
-    assert build_system_prompt((), ()) == ""
+    assert build_system_prompt((), (), include_memory=False) == ""
 
 
 def test_build_system_prompt_layers(
