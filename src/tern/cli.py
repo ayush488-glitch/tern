@@ -189,3 +189,41 @@ def _print_event_one_liner(ev: TurnEvent, console: Console) -> None:
 
 if __name__ == "__main__":
     app()
+
+
+@app.command()
+def chat(
+    mode: str = typer.Option(
+        "default",
+        "--mode",
+        "-m",
+        help="Permission mode: default, safe, yolo.",
+    ),
+    cwd: Path | None = typer.Option(
+        None, "--cwd", help="Repo root for tool sandbox (default: current)."
+    ),
+) -> None:
+    """Open a Textual chat session with tools wired in.
+
+    Live Bedrock call. Requires `TERN_LIVE=1` to actually hit the network.
+    """
+    if os.environ.get("TERN_LIVE") != "1":
+        typer.secho(
+            "tern chat is a live Bedrock call. Set TERN_LIVE=1 to confirm.\n"
+            "  TERN_LIVE=1 tern chat",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if mode not in {"default", "safe", "yolo"}:
+        typer.secho(
+            f"unknown mode '{mode}'. expected: default, safe, yolo.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    from tern.ui import run_chat
+
+    run_chat(mode=mode, repo_root=cwd)
