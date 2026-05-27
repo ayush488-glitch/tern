@@ -52,3 +52,4 @@ Bedrock streaming and diff-up-front edit_block approval. LLMTextDelta event,
 StreamingProviderAdapter Protocol, FakeStreamingAdapter test double, +4 tests.
 Gates: pytest 96/96, ruff clean, mypy --strict clean (27 src), live Bedrock
 streaming smoke green. Touched: 12 files.
+## [2026-05-28] session-end | S10 session graph (D3) — store + log/resume/branch/replay, 108/108 green

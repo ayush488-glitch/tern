@@ -244,7 +244,12 @@ _HELP = """\
 """
 
 
-def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
+def run_chat(
+    *,
+    mode: str = "default",
+    repo_root: Path | None = None,
+    resume_session: str | None = None,
+) -> None:
     """Blocking entry point. Wires registry + gate + adapter, runs the REPL."""
     repo = (repo_root or Path.cwd()).resolve()
     console = Console()
@@ -252,14 +257,38 @@ def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
 
     registry = Registry([ReadFileTool(), EditBlockTool()])
     gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
-    session_id = uuid.uuid4().hex[:12]
+
+    # ---- D3 / S10: optionally resume a prior session, else fresh -------
+    from tern.obs.store import (
+        chain_to_messages,
+        persist_message,
+        read_session_head,
+        update_session_head,
+        walk_chain,
+    )
+
+    history: list[CanonicalMessage] = []
+    parent_sha: str | None = None
+    turn_idx = 0
+    if resume_session:
+        head = read_session_head(resume_session, cwd=repo)
+        if head is None:
+            console.print(f"[red]no session {resume_session} in this project[/red]")
+            return
+        session_id = resume_session
+        chain = walk_chain(head, cwd=repo)
+        history = list(chain_to_messages(chain))
+        parent_sha = head
+        turn_idx = (chain[-1].turn_idx or 0) + 1
+        console.print(f"[dim]resumed {session_id} · {len(chain)} prior turns[/dim]")
+    else:
+        session_id = uuid.uuid4().hex[:12]
+
     sink = NDJSONSpanSink(session_id=session_id, cwd=repo)
     rec = SpanRecorder(sink=sink)
 
-    history: list[CanonicalMessage] = []
     pt_session: PromptSession[str] = PromptSession(history=InMemoryHistory())
 
-    turn_idx = 0
     while True:
         try:
             with patch_stdout():
@@ -276,15 +305,24 @@ def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
             console.print(_HELP)
             continue
 
-        history.append(
-            CanonicalMessage(
-                role="user",
-                content=(TextBlock(text=user_text),),
-                metadata=Metadata(
-                    schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
-                ),
-            )
+        user_msg = CanonicalMessage(
+            role="user",
+            content=(TextBlock(text=user_text),),
+            metadata=Metadata(
+                schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"
+            ),
         )
+        history.append(user_msg)
+        # Persist user turn-object and advance head before sending.
+        _, parent_sha = persist_message(
+            user_msg,
+            session_id=session_id,
+            turn_idx=turn_idx,
+            parent=parent_sha,
+            cwd=repo,
+            routing_purpose=TurnPurpose.CODE.value,
+        )
+        update_session_head(session_id, parent_sha, cwd=repo)
         adapter = select_adapter(TurnPurpose.CODE)
         turn = Turn(
             id=uuid.uuid4().hex[:12],
@@ -325,6 +363,15 @@ def run_chat(*, mode: str = "default", repo_root: Path | None = None) -> None:
         last = getattr(adapter, "last_response_message", None)
         if last is not None:
             history.append(last)
+            _, parent_sha = persist_message(
+                last,
+                session_id=session_id,
+                turn_idx=turn_idx,
+                parent=parent_sha,
+                cwd=repo,
+                routing_purpose=TurnPurpose.CODE.value,
+            )
+            update_session_head(session_id, parent_sha, cwd=repo)
         turn_idx += 1
 
     console.print(

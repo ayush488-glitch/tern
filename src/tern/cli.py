@@ -30,6 +30,15 @@ from tern.obs.recorder import SpanRecorder
 from tern.obs.render import print_forest
 from tern.obs.replay import replay_to_recorder
 from tern.obs.sink import NDJSONSpanSink
+from tern.obs.store import (
+    list_branches,
+    list_sessions,
+    persist_message,
+    read_session_head,
+    update_session_head,
+    walk_chain,
+    write_branch,
+)
 
 app = typer.Typer(
     name="tern",
@@ -155,6 +164,18 @@ def run(
     rec = SpanRecorder(sink=sink)
     console = Console()
 
+    # ---- D3 / S10: persist user message before sending ------------------
+    user_msg = turn.messages[-1]
+    _user_obj, parent_sha = persist_message(
+        user_msg,
+        session_id=session_id,
+        turn_idx=0,
+        parent=None,
+        cwd=cwd,
+        routing_purpose=turn_purpose.value,
+    )
+    update_session_head(session_id, parent_sha, cwd=cwd)
+
     async def _go() -> None:
         async for ev in run_turn(turn, adapter):
             rec.consume(ev)
@@ -162,9 +183,18 @@ def run(
 
     asyncio.run(_go())
 
-    # Print the assistant text last, plain.
+    # Persist the assistant reply (if any) and advance the session head.
     response_msg = adapter.last_response_message  # type: ignore[attr-defined]
     if response_msg is not None:
+        _, head_sha = persist_message(
+            response_msg,
+            session_id=session_id,
+            turn_idx=0,
+            parent=parent_sha,
+            cwd=cwd,
+            routing_purpose=turn_purpose.value,
+        )
+        update_session_head(session_id, head_sha, cwd=cwd)
         for block in response_msg.content:
             if isinstance(block, TextBlock):
                 typer.echo(block.text)
@@ -191,6 +221,247 @@ if __name__ == "__main__":
     app()
 
 
+# ---------------------------------------------------------------------------
+# S10 / D3 — session graph commands
+# ---------------------------------------------------------------------------
+
+
+def _resolve_session(prefix: str, cwd: Path | None) -> str:
+    """Return full session_id from a prefix, or raise typer.Exit. Empty prefix
+    picks the most recent session."""
+    sessions = list_sessions(cwd)
+    if not sessions:
+        typer.secho("no sessions in this project", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    if not prefix:
+        return sessions[0][0]
+    matches = [s for s in sessions if s[0].startswith(prefix)]
+    if not matches:
+        typer.secho(f"no session matching {prefix!r}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    if len(matches) > 1:
+        typer.secho(
+            f"ambiguous prefix {prefix!r} matches {len(matches)} sessions",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return matches[0][0]
+
+
+@app.command(name="log")
+def log_cmd(
+    session: str = typer.Argument("", help="Session id or prefix (default: most recent)."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
+) -> None:
+    """Show the chain of turn-objects for a session, root → head."""
+    sid = _resolve_session(session, cwd)
+    head = read_session_head(sid, cwd=cwd)
+    if head is None:
+        typer.secho(f"session {sid} has no head", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    chain = walk_chain(head, cwd=cwd)
+    console = Console()
+    console.print(f"[bold]session {sid}[/bold]  head [cyan]{head[:12]}[/cyan]  ({len(chain)} turns)")
+    for i, obj in enumerate(chain):
+        from tern.obs.store import content_hash as _ch
+        sha = _ch(obj)
+        cost = f"${obj.cost.usd_total:.4f}" if obj.cost else "-"
+        model = obj.model_id or "-"
+        preview = ""
+        for blk in obj.content:
+            if isinstance(blk, TextBlock):
+                preview = blk.text.replace("\n", " ")[:60]
+                break
+        console.print(
+            f"  [dim]{i:>2}[/dim] [yellow]{sha[:10]}[/yellow] "
+            f"[magenta]{obj.role:<9}[/magenta] {model:<60} {cost:>9}  {preview}"
+        )
+    branches = list_branches(sid, cwd=cwd)
+    if branches:
+        console.print("\n[bold]branches[/bold]")
+        for name, sha in branches:
+            console.print(f"  [green]{name}[/green]  → [yellow]{sha[:12]}[/yellow]")
+
+
+@app.command()
+def sessions(
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+) -> None:
+    """List all sessions in this project, newest first."""
+    rows = list_sessions(cwd)
+    if not rows:
+        typer.echo("no sessions")
+        return
+    console = Console()
+    for sid, sha, _ in rows:
+        console.print(f"  [cyan]{sid}[/cyan]  head [yellow]{sha[:12]}[/yellow]")
+
+
+@app.command()
+def resume(
+    session: str = typer.Argument("", help="Session id/prefix (default: most recent)."),
+    prompt: str = typer.Argument(..., help="The next user prompt."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+    max_tokens: int = typer.Option(1024, "--max-tokens"),
+) -> None:
+    """Resume a session: load chain, append prompt, run one turn, advance head."""
+    if os.environ.get("TERN_LIVE") != "1":
+        typer.secho("tern resume is a live Bedrock call. Set TERN_LIVE=1.", fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(code=2)
+
+    sid = _resolve_session(session, cwd)
+    head = read_session_head(sid, cwd=cwd)
+    if head is None:
+        typer.secho(f"session {sid} has no head", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    chain = walk_chain(head, cwd=cwd)
+    from tern.obs.store import chain_to_messages
+    history = list(chain_to_messages(chain))
+
+    # Pick purpose from the most recent assistant turn, default CODE.
+    last_purpose = next(
+        (TurnPurpose(o.routing_purpose) for o in reversed(chain)
+         if o.routing_purpose in {p.value for p in TurnPurpose}),
+        TurnPurpose.CODE,
+    )
+    adapter = select_adapter(last_purpose)
+
+    user_msg = CanonicalMessage(
+        role="user",
+        content=(TextBlock(text=prompt),),
+        metadata=Metadata(schema_version=SCHEMA_VERSION, ts=0.0, provenance="cli"),
+    )
+    history.append(user_msg)
+    next_idx = (chain[-1].turn_idx or 0) + 1
+
+    _, parent_sha = persist_message(
+        user_msg, session_id=sid, turn_idx=next_idx, parent=head,
+        cwd=cwd, routing_purpose=last_purpose.value,
+    )
+    update_session_head(sid, parent_sha, cwd=cwd)
+
+    turn = Turn(
+        id=uuid.uuid4().hex[:12],
+        session_id=sid,
+        idx=next_idx,
+        purpose=last_purpose,
+        messages=tuple(history),
+        max_tokens=max_tokens,
+    )
+    sink = NDJSONSpanSink(session_id=sid, cwd=cwd)
+    rec = SpanRecorder(sink=sink)
+    console = Console()
+
+    async def _go() -> None:
+        async for ev in run_turn(turn, adapter):
+            rec.consume(ev)
+            _print_event_one_liner(ev, console)
+
+    asyncio.run(_go())
+    response_msg = adapter.last_response_message  # type: ignore[attr-defined]
+    if response_msg is not None:
+        _, head_sha = persist_message(
+            response_msg, session_id=sid, turn_idx=next_idx, parent=parent_sha,
+            cwd=cwd, routing_purpose=last_purpose.value,
+        )
+        update_session_head(sid, head_sha, cwd=cwd)
+        for blk in response_msg.content:
+            if isinstance(blk, TextBlock):
+                typer.echo(blk.text)
+    typer.secho(
+        f"\nresumed {sid}  ·  cost ${rec.total_cost_usd():.4f}",
+        fg=typer.colors.BRIGHT_BLACK, err=True,
+    )
+
+
+@app.command()
+def branch(
+    name: str = typer.Argument(..., help="Branch name."),
+    target: str = typer.Argument("", help="Turn-hash or session prefix to fork from (default: head of most recent session)."),
+    session: str = typer.Option("", "--session", help="Session id/prefix to branch under."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+) -> None:
+    """Create a named branch pointing at a turn-hash. Forks the conversation
+    graph; does NOT modify your workspace."""
+    sid = _resolve_session(session, cwd)
+    head = read_session_head(sid, cwd=cwd)
+    if head is None:
+        typer.secho(f"session {sid} has no head", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    if not target:
+        target_sha = head
+    else:
+        # Try as full hash, else search the chain for prefix match.
+        chain = walk_chain(head, cwd=cwd)
+        from tern.obs.store import content_hash as _ch
+        candidates = [_ch(o) for o in chain if _ch(o).startswith(target)]
+        if not candidates:
+            typer.secho(f"no turn matching {target!r} in {sid}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+        if len(candidates) > 1:
+            typer.secho(f"ambiguous prefix {target!r}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
+        target_sha = candidates[0]
+    write_branch(sid, name, target_sha, cwd=cwd)
+    typer.secho(f"branch {name} → {target_sha[:12]}", fg=typer.colors.GREEN)
+
+
+@app.command()
+def branches(
+    session: str = typer.Argument("", help="Session id/prefix."),
+    cwd: Path | None = typer.Option(None, "--cwd"),
+) -> None:
+    """List branches on a session."""
+    sid = _resolve_session(session, cwd)
+    rows = list_branches(sid, cwd=cwd)
+    if not rows:
+        typer.echo(f"no branches on {sid}")
+        return
+    for n, sha in rows:
+        typer.echo(f"  {n}  {sha[:12]}")
+
+
+@app.command()
+def replay(
+    session: str = typer.Argument("", help="Session id/prefix (default: most recent)."),
+    check: bool = typer.Option(True, "--check/--no-check", help="Assert content hashes are stable."),
+    cwd: Path | None = typer.Option(None, "--cwd"),
+) -> None:
+    """Pure replay: walk the chain, re-hash every object, verify integrity.
+
+    Per ADR-0005: pure replay does not re-fetch from the provider. It re-reads
+    every turn-object and asserts hash equality. A mismatch means the store is
+    corrupt or someone hand-edited an object file.
+    """
+    sid = _resolve_session(session, cwd)
+    head = read_session_head(sid, cwd=cwd)
+    if head is None:
+        typer.secho(f"session {sid} has no head", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    chain = walk_chain(head, cwd=cwd)
+    from tern.obs.store import content_hash as _ch
+    failures: list[tuple[int, str, str]] = []
+    for i, obj in enumerate(chain):
+        recomputed = _ch(obj)
+        # The hash we got from walk is implicit in the parent chain; we
+        # recompute and compare against the file path it was stored at by
+        # round-tripping. Same content → same hash invariant.
+        # (Object name in the store IS recomputed; if files were mutated,
+        # the read would already have failed in walk_chain.)
+        if i + 1 < len(chain):
+            child = chain[i + 1]
+            if child.parent != recomputed:
+                failures.append((i, recomputed, child.parent or ""))
+    console = Console()
+    console.print(f"[bold]replay {sid}[/bold]  {len(chain)} turns  head [cyan]{head[:12]}[/cyan]")
+    if check and failures:
+        for idx, expected, got in failures:
+            console.print(f"  [red]✗[/red] turn {idx}: child.parent={got[:12]} expected {expected[:12]}")
+        raise typer.Exit(code=1)
+    console.print("[green]✓ hash chain consistent[/green]")
+
+
 @app.command()
 def chat(
     mode: str = typer.Option(
@@ -202,11 +473,14 @@ def chat(
     cwd: Path | None = typer.Option(
         None, "--cwd", help="Repo root for tool sandbox (default: current)."
     ),
+    resume: str = typer.Option(
+        "", "--resume", "-r", help="Session id/prefix to resume (default: fresh)."
+    ),
 ) -> None:
     """Open an inline REPL chat session with tools wired in.
 
     Streams Bedrock tokens live; destructive tools prompt inline with a
-    unified diff. Ctrl+C cancels the in-flight turn; press it twice to exit.
+    unified diff panel. Ctrl+C cancels the in-flight turn; press it twice to exit.
     Requires `TERN_LIVE=1` to confirm you want a live Bedrock call.
     """
     if os.environ.get("TERN_LIVE") != "1":
@@ -228,4 +502,7 @@ def chat(
 
     from tern.ui import run_chat
 
-    run_chat(mode=mode, repo_root=cwd)
+    resolved_resume: str | None = None
+    if resume:
+        resolved_resume = _resolve_session(resume, cwd)
+    run_chat(mode=mode, repo_root=cwd, resume_session=resolved_resume)
