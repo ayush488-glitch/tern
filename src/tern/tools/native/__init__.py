@@ -10,5 +10,6 @@ from __future__ import annotations
 from tern.tools.native.edit_block import EditBlockTool
 from tern.tools.native.notes_append import NotesAppendTool
 from tern.tools.native.read_file import ReadFileTool
+from tern.tools.native.web_fetch import WebFetchTool
 
-__all__ = ["EditBlockTool", "NotesAppendTool", "ReadFileTool"]
+__all__ = ["EditBlockTool", "NotesAppendTool", "ReadFileTool", "WebFetchTool"]

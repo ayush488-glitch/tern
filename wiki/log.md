@@ -59,3 +59,6 @@ streaming smoke green. Touched: 12 files.
 
 ## [2026-05-28] decision | ADR-0007 live HTML notes artifact (D4)
 ## [2026-05-28] session-end | S12 live HTML notes artifact (D4) — 137/137 green, mypy strict ✅
+
+## [2026-05-28] decision | ADR-0008 browser-shaped tool slot + MCP client (D5 + D6)
+## [2026-05-28] session-end | S13 browser + MCP — WebFetchTool v0 (urllib, text-only) + full MCP stdio bridge with .tern/mcp.json config; 159/159 green, ruff clean, mypy --strict ✅; live Bedrock end-to-end demo `tern run "fetch http://example.com..."` succeeded with real tool call.

@@ -58,7 +58,7 @@ from tern.tools import (
     Tool,
     ToolContext,
 )
-from tern.tools.native import EditBlockTool, NotesAppendTool, ReadFileTool
+from tern.tools.native import EditBlockTool, NotesAppendTool, ReadFileTool, WebFetchTool
 from tern.tools.permissions import Prompter
 
 # ---------------------------------------------------------------------------
@@ -255,7 +255,7 @@ def run_chat(
     console = Console()
     console.print(_HELP)
 
-    registry = Registry([ReadFileTool(), EditBlockTool(), NotesAppendTool()])
+    registry = Registry([ReadFileTool(), EditBlockTool(), NotesAppendTool(), WebFetchTool()])
     gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
 
     # ---- D3 / S10: optionally resume a prior session, else fresh -------

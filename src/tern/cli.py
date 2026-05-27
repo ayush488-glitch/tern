@@ -133,6 +133,15 @@ def run(
         )
         raise typer.Exit(code=2)
 
+    from tern.tools import PermissionGate, Registry
+    from tern.tools.mcp import MCPManager, load_mcp_config
+    from tern.tools.native import (
+        EditBlockTool,
+        NotesAppendTool,
+        ReadFileTool,
+        WebFetchTool,
+    )
+
     purpose_key = purpose.lower()
     if purpose_key not in _PURPOSE_ALIASES:
         typer.secho(
@@ -160,6 +169,12 @@ def run(
     ) if sys_text else ()
 
     session_id = uuid.uuid4().hex[:12]
+    repo = (cwd or Path.cwd()).resolve()
+    registry = Registry(
+        [ReadFileTool(), EditBlockTool(), NotesAppendTool(), WebFetchTool()]
+    )
+    gate = PermissionGate()  # default deny on destructive in default mode
+
     turn = Turn(
         id=uuid.uuid4().hex[:12],
         session_id=session_id,
@@ -178,6 +193,9 @@ def run(
             ),
         ),
         max_tokens=max_tokens,
+        registry=registry,
+        gate=gate,
+        repo_root=repo,
     )
 
     sink = NDJSONSpanSink(session_id=session_id, cwd=cwd)
@@ -197,9 +215,20 @@ def run(
     update_session_head(session_id, parent_sha, cwd=cwd)
 
     async def _go() -> None:
-        async for ev in run_turn(turn, adapter):
-            rec.consume(ev)
-            _print_event_one_liner(ev, console)
+        # ---- D6 / S13: MCP servers (loaded if .tern/mcp.json or ~/.tern/mcp.json exists)
+        mcp_servers = load_mcp_config(cwd)
+        async with MCPManager.connect(mcp_servers) as mcp_mgr:
+            for t in mcp_mgr.tools:
+                registry.register(t)
+            if mcp_mgr.tools:
+                typer.secho(
+                    f"mcp: {len(mcp_mgr.tools)} tool(s) bridged",
+                    fg=typer.colors.BRIGHT_BLACK,
+                    err=True,
+                )
+            async for ev in run_turn(turn, adapter):
+                rec.consume(ev)
+                _print_event_one_liner(ev, console)
 
     asyncio.run(_go())
 

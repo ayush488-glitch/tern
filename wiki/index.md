@@ -22,6 +22,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [decisions/adr-0005-session-state.md](decisions/adr-0005-session-state.md) — object store, refs, branches, replay / D3 (S5, accepted).
 - [decisions/adr-0006-skills-runtime.md](decisions/adr-0006-skills-runtime.md) — disk SKILL.md, catalog digest + per-turn active block, keyword + explicit retrieval / D2 (S11, accepted).
 - [decisions/adr-0007-live-html-notes-artifact.md](decisions/adr-0007-live-html-notes-artifact.md) — JSONL note store + server-side HTML render + per-turn hook + `notes_append` tool / D4 (S12, accepted).
+- [decisions/adr-0008-browser-and-mcp.md](decisions/adr-0008-browser-and-mcp.md) — `web_fetch` v0 (browser-shaped slot) + MCP client with stdio + `.tern/mcp.json` / D5 + D6 (S13, accepted).
 
 ## Concepts
 - [concepts/canonical-message-log.md](concepts/canonical-message-log.md) — the one lock: internal log ≠ provider wire format.
@@ -60,6 +61,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S10-session-graph.md](sessions/S10-session-graph.md) — D3 landed: content-addressed turn-object store + session refs + transcripts; `tern log/resume/branch/replay`; chat `--resume`. 108/108 green.
 - [sessions/S11-skills-runtime.md](sessions/S11-skills-runtime.md) — D2 landed: disk SKILL.md catalog, per-turn keyword + explicit-mention retrieval, `tern skills` CLI, live Bedrock smoke green. 125/125 green.
 - [sessions/S12-live-html-notes-artifact.md](sessions/S12-live-html-notes-artifact.md) — D4 landed: JSONL note store, server-side HTML render, `notes_append` tool, `tern notes` CLI, live Bedrock smoke green. 137/137 green.
+- [sessions/S13-browser-and-mcp.md](sessions/S13-browser-and-mcp.md) — D5 + D6 landed: `WebFetchTool` v0 (urllib, text-only) + full MCP stdio bridge (`.tern/mcp.json`); live Bedrock smoke green; real-subprocess MCP integration test. 159/159 green.
 
 ---
 

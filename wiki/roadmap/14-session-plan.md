@@ -31,8 +31,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S10 M7 session, replay, branch (D3) | ✅ done | 2026-05-28 |
 | | S11 M6 skills runtime (D2) | ✅ done | 2026-05-28 |
 | | S12 M8 live HTML notes artifact (D4) | ✅ done | 2026-05-28 |
-| **▶** | **S13 M9 + M10 browser + MCP (D5 + D6)** | **next** | — |
-| | S14 M12 + M13 reliability + security pass | — | — |
+| | S13 M9 + M10 browser + MCP (D5 + D6) | ✅ done | 2026-05-28 |
+| **▶** | **S14 M12 + M13 reliability + security pass** | **next** | — |
 | | S15 M14 polish + global install | — | — |
 | | S16 walkthrough authored from notes | — | — |
 
