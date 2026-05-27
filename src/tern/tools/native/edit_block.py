@@ -198,11 +198,11 @@ def _match_but_for_leading_whitespace(
     """
     if len(whole_chunk) != len(search_chunk):
         return None
-    if any(w.lstrip() != s.lstrip() for w, s in zip(whole_chunk, search_chunk)):
+    if any(w.lstrip() != s.lstrip() for w, s in zip(whole_chunk, search_chunk, strict=True)):
         return None
     indents = {
         w[: len(w) - len(w.lstrip())]
-        for w, s in zip(whole_chunk, search_chunk)
+        for w, s in zip(whole_chunk, search_chunk, strict=True)
         if s.strip()
     }
     # All non-blank source lines must have been re-indented by the SAME prefix.
