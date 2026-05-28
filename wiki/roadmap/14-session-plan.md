@@ -33,17 +33,22 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S12 M8 live HTML notes artifact (D4) | ✅ done | 2026-05-28 |
 | | S13 M9 + M10 browser + MCP (D5 + D6) | ✅ done | 2026-05-28 |
 | | S14 M12 + M13 reliability + security + tool parity | ✅ done | 2026-05-28 |
-| **▶** | **S15 persistent memory + skill self-mgmt + notes-fix** | **next** | — |
-| | S16 model breadth (openai, nova, kimi, xai) + cost router populated | 2026-05-28 | ✅ |
-| | S17 vision (image input + screenshot tool) | — | — |
-| | S18 real search engine + browser_navigate/click/type | — | — |
-| | S19 self-curation (`tern curate`) | — | — |
-| | S20 M14 polish + pipx + walkthrough | — | — |
+| | S15 persistent memory + skill self-mgmt + notes-fix | ✅ done | 2026-05-28 |
+| | S16 model breadth (nova, openai) + cost router populated | ✅ done | 2026-05-28 |
+| | S17 repo-scoped memory tier (Layer A — ADR-0011 substrate) | ✅ done | 2026-05-28 |
+| **▶** | **S18 cognitive router + KNN recall (ADR-0011 subsystems 1+2)** | **next** | — |
+| | S19 curator with outcome priors (ADR-0011 subsystem 3) | — | — |
+| | S20 StackOverflow lookup tool (ADR-0011 §S20) | — | — |
+| | S21 long-running build hardening (ADR-0012 — six primitives) | — | — |
+| | S22 vision (image input + screenshot tool) | — | — |
+| | S23 real search + browser navigate/click/type | — | — |
+| | S24 M14 polish + pipx + walkthrough | — | — |
 
-**S15→S20 are an additive ladder** lifting Tern from "focused coding agent"
-toward Hermes-shaped breadth (memory · skills · models · vision · search ·
-browser · curation). The original S15 (polish) and S16 (walkthrough) collapsed
-into S20. Source: [tern-vs-hermes-scope](../concepts/tern-vs-hermes-scope.md).
+**Sequencing is locked by ADR-0011 + ADR-0012.** The table above supersedes the
+original plan. S17→S20 are the moat (cognitive routing + memory + curation). S21
+is long-running build hardening. S22–S24 are vision, browser, and ship.
+Sources: [adr-0011](../decisions/adr-0011-cognitive-routing-and-recall.md),
+[adr-0012](../decisions/adr-0012-long-running-build-hardening.md).
 
 ---
 

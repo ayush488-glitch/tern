@@ -182,7 +182,7 @@ def run(
     # ---- D2 / S11: skills runtime --------------------------------------
     skills = load_skills(cwd)
     active = select_active(prompt, skills)
-    sys_text = build_system_prompt(skills, active)
+    sys_text = build_system_prompt(skills, active, cwd=cwd or Path.cwd())
     sys_msg = (
         CanonicalMessage(
             role="system",
@@ -432,7 +432,7 @@ def resume(
     # ---- D2 / S11: skills runtime --------------------------------------
     skills = load_skills(cwd)
     active = select_active(prompt, skills)
-    sys_text = build_system_prompt(skills, active)
+    sys_text = build_system_prompt(skills, active, cwd=cwd or Path.cwd())
     sys_prefix: tuple[CanonicalMessage, ...] = (
         (
             CanonicalMessage(

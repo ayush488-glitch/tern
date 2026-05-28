@@ -204,13 +204,18 @@ def build_system_prompt(
     *,
     base: str = "",
     include_memory: bool = True,
+    cwd: Path | None = None,
 ) -> str:
     """Compose: base preamble + catalog digest + active bodies + memory banners.
 
     Empty parts are dropped so a no-skills + no-memory run stays empty.
 
-    `include_memory=True` (default) appends MEMORY.md / USER.md banners from
-    `tern.memory`. Tests that don't want memory bleed-through can opt out.
+    `include_memory=True` (default) appends all three memory tiers:
+      1. global MEMORY.md (your personal notes)
+      2. repo-scoped memory (.tern/memory/ARCH|DECISIONS|FAILURES|REVIEWERS)
+      3. USER.md (user profile)
+    Tests that don't want memory bleed-through can opt out with include_memory=False.
+    `cwd` is forwarded to repo detection; defaults to Path.cwd() when None.
     """
     chunks = []
     if base.strip():
@@ -223,9 +228,9 @@ def build_system_prompt(
         chunks.append(block)
     if include_memory:
         # local import to avoid a cycle if memory ever imports skills
-        from tern.memory.store import render_all_banners
+        from tern.memory.store import render_all_banners_with_repo
 
-        banners = render_all_banners()
+        banners = render_all_banners_with_repo(cwd)
         if banners:
             chunks.append(banners)
     return "\n\n".join(chunks)

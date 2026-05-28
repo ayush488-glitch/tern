@@ -11,7 +11,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [docs/architecture.html](../docs/architecture.html) — single-page b&w architecture artifact (v0).
 
 ## Roadmap
-- [roadmap/14-session-plan.md](roadmap/14-session-plan.md) — full ladder, S3 → S16, current session marker.
+- [roadmap/14-session-plan.md](roadmap/14-session-plan.md) — full ladder, S3 → S24 (updated post-ADR-0011+0012), current session marker.
 - [roadmap/differentiators.md](roadmap/differentiators.md) — D1–D6, what each one means and where it lives.
 
 ## Decisions (ADRs)
@@ -68,6 +68,9 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S12-live-html-notes-artifact.md](sessions/S12-live-html-notes-artifact.md) — D4 landed: JSONL note store, server-side HTML render, `notes_append` tool, `tern notes` CLI, live Bedrock smoke green. 137/137 green.
 - [sessions/S13-browser-and-mcp.md](sessions/S13-browser-and-mcp.md) — D5 + D6 landed: `WebFetchTool` v0 (urllib, text-only) + full MCP stdio bridge (`.tern/mcp.json`); live Bedrock smoke green; real-subprocess MCP integration test. 159/159 green.
 - [sessions/S14-core-loop-parity-redaction-retry.md](sessions/S14-core-loop-parity-redaction-retry.md) — core-loop tool parity (write_file/glob/grep/bash) + sink-level secret redaction (ADR-0010) + Bedrock full-jitter retry/backoff (M12). 210/210 green, +51 tests, live Bedrock smoke green.
+- [sessions/S15-persistent-memory.md](sessions/S15-persistent-memory.md) — memory store (MEMORY.md + USER.md), memory tool, skill_manage tool, notes_append fix. 246/246 green, +50 tests.
+- [sessions/S16-multi-model-config-pricing.md](sessions/S16-multi-model-config-pricing.md) — BedrockNova + OpenAI adapters, pricing table, config/secrets split, `tern models`. 295/295 green, +35 tests.
+- [sessions/S17-repo-scoped-memory.md](sessions/S17-repo-scoped-memory.md) — repo-scoped memory tier (Layer A): `repo_store.py`, `render_all_banners_with_repo`, `scope="repo"` on MemoryTool. 327/327 green, +31 tests.
 
 ---
 

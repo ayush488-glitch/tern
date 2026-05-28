@@ -253,3 +253,31 @@ def render_all_banners() -> str:
         ) if b
     ]
     return "\n\n".join(parts)
+
+
+def render_all_banners_with_repo(cwd: Path | None = None) -> str:
+    """Compose banners in the canonical order: global MEMORY, REPO MEMORY, USER.
+
+    Designed for the system prompt. Empty sections are omitted.
+    The caller passes the project working directory so repo detection can walk
+    up from there to find .git / .tern.
+    """
+    from tern.memory.repo_store import find_repo_root, render_repo_banner
+
+    parts: list[str] = []
+
+    mem_banner = render_banner(load_memory("memory"))
+    if mem_banner:
+        parts.append(mem_banner)
+
+    root = find_repo_root(cwd or Path.cwd())
+    if root is not None:
+        repo_banner = render_repo_banner(root)
+        if repo_banner:
+            parts.append(repo_banner)
+
+    user_banner = render_banner(load_memory("user"))
+    if user_banner:
+        parts.append(user_banner)
+
+    return "\n\n".join(parts)
