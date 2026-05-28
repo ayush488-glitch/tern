@@ -71,6 +71,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S15-persistent-memory.md](sessions/S15-persistent-memory.md) — memory store (MEMORY.md + USER.md), memory tool, skill_manage tool, notes_append fix. 246/246 green, +50 tests.
 - [sessions/S16-multi-model-config-pricing.md](sessions/S16-multi-model-config-pricing.md) — BedrockNova + OpenAI adapters, pricing table, config/secrets split, `tern models`. 295/295 green, +35 tests.
 - [sessions/S17-repo-scoped-memory.md](sessions/S17-repo-scoped-memory.md) — repo-scoped memory tier (Layer A): `repo_store.py`, `render_all_banners_with_repo`, `scope="repo"` on MemoryTool. 327/327 green, +31 tests.
+- [sessions/S18-cognitive-router-knn-recall.md](sessions/S18-cognitive-router-knn-recall.md) — cognitive router (regex-first + Nova Micro fallback) + KNN recall (Titan v2 1024-dim, numpy store). 368/368 green, +41 tests.
 
 ---
 

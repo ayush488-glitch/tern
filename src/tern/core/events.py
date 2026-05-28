@@ -153,6 +153,31 @@ class ReflectionTriggered(_EventBase):
     kind: Literal["reflection_triggered"] = "reflection_triggered"
 
 
+# ─── routing + recall (S18) ───────────────────────────────────────────────────
+
+@dataclass(frozen=True, slots=True)
+class RoutingClassified(_EventBase):
+    """Fired once per turn before the LLM call when the auto-router fires.
+
+    `method` is one of "regex" (heuristic pass hit), "llm" (Nova Micro fallback),
+    or "default" (auto-router was not enabled, purpose came from --purpose flag).
+    """
+    prompt_preview: str = ""     # first 120 chars of user prompt
+    purpose: str = ""            # TurnPurpose.value e.g. "code"
+    method: str = "default"      # "regex" | "llm" | "default"
+    model_id: str = ""           # model chosen after routing
+    kind: Literal["routing_classified"] = "routing_classified"
+
+
+@dataclass(frozen=True, slots=True)
+class RecallQueried(_EventBase):
+    """Fired once per turn when KNN recall runs (even if 0 hits returned)."""
+    prompt_preview: str = ""     # first 120 chars of user prompt
+    n_candidates: int = 0        # vectors in the index
+    n_hits: int = 0              # results returned (top-k)
+    kind: Literal["recall_queried"] = "recall_queried"
+
+
 # ─── union & helpers ──────────────────────────────────────────────────────────
 
 TurnEvent = (
@@ -168,6 +193,8 @@ TurnEvent = (
     | ApprovalGranted
     | ApprovalDenied
     | ReflectionTriggered
+    | RoutingClassified
+    | RecallQueried
 )
 
 

@@ -255,12 +255,19 @@ def render_all_banners() -> str:
     return "\n\n".join(parts)
 
 
-def render_all_banners_with_repo(cwd: Path | None = None) -> str:
-    """Compose banners in the canonical order: global MEMORY, REPO MEMORY, USER.
+def render_all_banners_with_repo(
+    cwd: Path | None = None,
+    recall_hits: list[object] | None = None,
+) -> str:
+    """Compose banners in the canonical order:
+        global MEMORY → REPO MEMORY → SIMILAR PAST TURNS → USER PROFILE.
 
     Designed for the system prompt. Empty sections are omitted.
     The caller passes the project working directory so repo detection can walk
     up from there to find .git / .tern.
+
+    recall_hits is a list[RecallHit] (lazy-typed as list[object] to avoid
+    the numpy import at module load time).  Pass None or [] to skip the banner.
     """
     from tern.memory.repo_store import find_repo_root, render_repo_banner
 
@@ -275,6 +282,13 @@ def render_all_banners_with_repo(cwd: Path | None = None) -> str:
         repo_banner = render_repo_banner(root)
         if repo_banner:
             parts.append(repo_banner)
+
+    if recall_hits:
+        from tern.recall.banner import render_recall_banner
+
+        rb = render_recall_banner(recall_hits)  # type: ignore[arg-type]
+        if rb:
+            parts.append(rb)
 
     user_banner = render_banner(load_memory("user"))
     if user_banner:

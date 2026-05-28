@@ -21,7 +21,7 @@ from tern.core.canonical import (
     Metadata,
     TextBlock,
 )
-from tern.core.events import LLMResponded, TurnEvent
+from tern.core.events import LLMResponded, RecallQueried, RoutingClassified, TurnEvent
 from tern.core.loop import run_turn
 from tern.core.routing import select_adapter
 from tern.core.turn import Turn, TurnPurpose
@@ -106,15 +106,18 @@ _PURPOSE_ALIASES: dict[str, TurnPurpose] = {
     "boilerplate": TurnPurpose.BOILERPLATE,
 }
 
+# "auto" is a special sentinel, not a TurnPurpose — the router resolves it.
+_VALID_PURPOSES = {*_PURPOSE_ALIASES, "auto"}
+
 
 @app.command()
 def run(
     prompt: str = typer.Argument(..., help="The user prompt to send."),
     purpose: str = typer.Option(
-        "code",
+        "auto",
         "--purpose",
         "-p",
-        help="Routing purpose: arch, code, lint, boilerplate.",
+        help="Routing purpose: auto (default), arch, code, lint, boilerplate.",
     ),
     model: str | None = typer.Option(
         None,
@@ -156,33 +159,78 @@ def run(
     )
 
     purpose_key = purpose.lower()
-    if purpose_key not in _PURPOSE_ALIASES:
+    if purpose_key not in _VALID_PURPOSES:
         typer.secho(
             f"unknown purpose '{purpose}'. expected one of: "
-            f"{', '.join(_PURPOSE_ALIASES)}",
+            f"{', '.join(sorted(_VALID_PURPOSES))}",
             fg=typer.colors.RED,
             err=True,
         )
         raise typer.Exit(code=2)
-    turn_purpose = _PURPOSE_ALIASES[purpose_key]
 
-    # Model selection precedence: --model > config default_model > purpose default
+    # ---- D1 cost router (S18): resolve purpose + model --------------------
     from tern.core.config import get_config
     from tern.core.routing import adapter_for_model
-    chosen_model = model or get_config("default_model")
-    if chosen_model:
+    from tern.router import route as auto_route
+
+    routing_method = "default"
+    if model:
+        # Explicit --model wins over everything
         try:
-            adapter = adapter_for_model(chosen_model)
+            adapter = adapter_for_model(model)
         except ValueError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             raise typer.Exit(code=2) from exc
+        turn_purpose = TurnPurpose.CODE
+    elif purpose_key == "auto":
+        # Router: regex-first, Nova Micro fallback
+        config_model = get_config("default_model")
+        if config_model:
+            # User pinned a model globally; still classify for span metadata
+            turn_purpose, _chosen_mid, routing_method = auto_route(prompt, mode="auto")
+            try:
+                adapter = adapter_for_model(config_model)
+            except ValueError as exc:
+                typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                raise typer.Exit(code=2) from exc
+        else:
+            turn_purpose, chosen_model_id, routing_method = auto_route(prompt, mode="auto")
+            adapter = adapter_for_model(chosen_model_id)
     else:
-        adapter = select_adapter(turn_purpose)
+        # Explicit --purpose flag
+        turn_purpose = _PURPOSE_ALIASES[purpose_key]
+        config_model = get_config("default_model")
+        chosen_model_id = config_model or ""
+        if chosen_model_id:
+            try:
+                adapter = adapter_for_model(chosen_model_id)
+            except ValueError as exc:
+                typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                raise typer.Exit(code=2) from exc
+        else:
+            adapter = select_adapter(turn_purpose)
+
+    # ---- KNN recall (S18): fetch similar past turns -----------------------
+    repo = (cwd or Path.cwd()).resolve()
+    recall_hits: list[object] = []
+    try:
+        from tern.memory.repo_store import find_repo_root
+        from tern.recall import RecallStore
+        from tern.recall.embed import embed
+
+        recall_root = find_repo_root(repo)
+        if recall_root is not None:
+            store = RecallStore(recall_root)
+            if store.size > 0:
+                qvec = embed(prompt)
+                recall_hits = store.query(qvec)  # type: ignore[assignment]
+    except Exception:
+        pass  # recall failure must never kill a turn
 
     # ---- D2 / S11: skills runtime --------------------------------------
     skills = load_skills(cwd)
     active = select_active(prompt, skills)
-    sys_text = build_system_prompt(skills, active, cwd=cwd or Path.cwd())
+    sys_text = build_system_prompt(skills, active, cwd=cwd or Path.cwd(), recall_hits=recall_hits or None)
     sys_msg = (
         CanonicalMessage(
             role="system",
@@ -194,7 +242,6 @@ def run(
     ) if sys_text else ()
 
     session_id = uuid.uuid4().hex[:12]
-    repo = (cwd or Path.cwd()).resolve()
     registry = Registry(
         [
             ReadFileTool(),
@@ -267,6 +314,34 @@ def run(
                 _print_event_one_liner(ev, console)
 
     asyncio.run(_go())
+
+    # ---- S18: emit routing + recall span metadata -----------------------
+    # Fire RoutingClassified so the span tree records which method + model chose.
+    _routing_ev = RoutingClassified(
+        parent_id=turn.id,
+        prompt_preview=prompt[:120],
+        purpose=turn_purpose.value,
+        method=routing_method,
+        model_id=getattr(adapter, "model_id", ""),
+    )
+    rec.consume(_routing_ev)
+    # Fire RecallQueried so latency + hit-rate is observable in span trees.
+    _recall_size = 0
+    try:
+        from tern.memory.repo_store import find_repo_root
+        from tern.recall import RecallStore as _RS
+        _rr = find_repo_root(repo)
+        if _rr is not None:
+            _recall_size = _RS(_rr).size
+    except Exception:
+        pass
+    _recall_ev = RecallQueried(
+        parent_id=turn.id,
+        prompt_preview=prompt[:120],
+        n_candidates=_recall_size,
+        n_hits=len(recall_hits),
+    )
+    rec.consume(_recall_ev)
 
     # Persist the assistant reply (if any) and advance the session head.
     response_msg = adapter.last_response_message  # type: ignore[attr-defined]
@@ -781,3 +856,97 @@ def models_cmd() -> None:
     for mid in known_models():
         p = pricing_for(mid)
         typer.echo(f"{mid:<55}  {p.usd_in_per_m:>8.3f}  {p.usd_out_per_m:>9.3f}")
+
+
+# ===========================================================================
+# S18: recall CLI — human inspection of the per-repo KNN index
+# ===========================================================================
+
+recall_app = typer.Typer(
+    name="recall",
+    help="Query and inspect the per-repo KNN recall index (S18).",
+    no_args_is_help=False,
+    invoke_without_command=True,
+)
+app.add_typer(recall_app, name="recall")
+
+
+@recall_app.callback()
+def _recall_default(
+    ctx: typer.Context,
+    query: str = typer.Argument("", help="Prompt text to query similar past turns."),
+    top_k: int = typer.Option(3, "--top-k", "-k", help="Max hits to return."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
+) -> None:
+    """`tern recall [QUERY]` — embed query and show top-k similar past turns.
+
+    With no QUERY, shows index stats only.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    from tern.memory.repo_store import find_repo_root
+    from tern.recall import RecallStore
+    from tern.recall.embed import embed
+
+    repo = (cwd or Path.cwd()).resolve()
+    recall_root = find_repo_root(repo)
+    if recall_root is None:
+        typer.secho("no .git / .tern found walking up from cwd — not inside a repo", fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(code=1)
+
+    store = RecallStore(recall_root)
+    console = Console()
+
+    if not query:
+        console.print(f"recall index: [cyan]{recall_root / '.tern' / 'recall'}[/cyan]")
+        console.print(f"indexed turns: [yellow]{store.size}[/yellow]")
+        return
+
+    if store.size == 0:
+        typer.secho("recall index is empty — run some turns first", fg=typer.colors.YELLOW)
+        raise typer.Exit()
+
+    qvec = embed(query)
+    hits = store.query(qvec, top_k=top_k)
+    if not hits:
+        typer.echo("no recall hits (index empty or all zero-vectors)")
+        return
+
+    console.print(f"[bold]top {len(hits)} recall hits for:[/bold] {query[:80]}")
+    console.print()
+    for i, hit in enumerate(hits, 1):
+        sim = f"{hit.similarity * 100:.0f}%"
+        console.print(f"  [yellow]{i}[/yellow]  [cyan]{hit.purpose:<12}[/cyan]  sim=[green]{sim}[/green]")
+        console.print(f"     prompt: {hit.prompt_preview}")
+        console.print(f"     reply:  {hit.reply_preview}")
+        console.print()
+
+
+@recall_app.command("add")
+def recall_add(
+    prompt: str = typer.Argument(..., help="Prompt text to embed and store."),
+    reply: str = typer.Argument(..., help="Reply text to store alongside."),
+    purpose: str = typer.Option("code", "--purpose", "-p", help="TurnPurpose label."),
+    sha: str = typer.Option("", "--sha", help="Turn SHA (default: auto-generated)."),
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir."),
+) -> None:
+    """Manually add a (prompt, reply) pair to the recall index. Useful for seeding."""
+    import uuid
+
+    from tern.memory.repo_store import find_repo_root
+    from tern.recall import RecallStore
+    from tern.recall.embed import embed
+
+    repo = (cwd or Path.cwd()).resolve()
+    recall_root = find_repo_root(repo)
+    if recall_root is None:
+        typer.secho("no .git / .tern found — not inside a repo", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    store = RecallStore(recall_root)
+    vec = embed(prompt)
+    sha_val = sha or uuid.uuid4().hex[:12]
+    store.add(sha=sha_val, prompt=prompt, reply=reply, purpose=purpose, vector=vec)
+    typer.secho(f"added turn {sha_val} to recall index (size now {store.size})", fg=typer.colors.GREEN)
+
