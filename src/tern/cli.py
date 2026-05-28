@@ -21,7 +21,7 @@ from tern.core.canonical import (
     Metadata,
     TextBlock,
 )
-from tern.core.events import LLMResponded, RecallQueried, RoutingClassified, TurnEvent
+from tern.core.events import LLMResponded, OutcomeSpan, RecallQueried, RoutingClassified, TurnEvent
 from tern.core.loop import run_turn
 from tern.core.routing import select_adapter
 from tern.core.turn import Turn, TurnPurpose
@@ -297,7 +297,13 @@ def run(
     )
     update_session_head(session_id, parent_sha, cwd=cwd)
 
+    # S19 outcome accumulators — populated inside _go() by inspecting ToolReturned events.
+    _s19_tool_names: set[str] = set()
+    _s19_tool_outputs: list[str] = []
+    _s19_error_count: int = 0
+
     async def _go() -> None:
+        nonlocal _s19_tool_names, _s19_tool_outputs, _s19_error_count
         # ---- D6 / S13: MCP servers (loaded if .tern/mcp.json or ~/.tern/mcp.json exists)
         mcp_servers = load_mcp_config(cwd)
         async with MCPManager.connect(mcp_servers) as mcp_mgr:
@@ -312,6 +318,15 @@ def run(
             async for ev in run_turn(turn, adapter):
                 rec.consume(ev)
                 _print_event_one_liner(ev, console)
+                # Accumulate tool signal for S19 outcome span
+                if ev.__class__.__name__ == "ToolCalled":
+                    _s19_tool_names.add(getattr(ev, "tool_name", ""))
+                elif ev.__class__.__name__ == "ToolReturned":
+                    if not getattr(ev, "ok", True):
+                        _s19_error_count += 1
+                    err_str = getattr(ev, "error", None)
+                    if err_str:
+                        _s19_tool_outputs.append(str(err_str))
 
     asyncio.run(_go())
 
@@ -342,6 +357,47 @@ def run(
         n_hits=len(recall_hits),
     )
     rec.consume(_recall_ev)
+
+    # ---- S19: emit OutcomeSpan + log_outcome ----------------------------
+    # _tool_outputs, _tool_names, _error_count are collected inside _go().
+    _tests_passed: bool | None = None
+    _commit_landed: bool | None = None
+    try:
+        from tern.memory.curate import detect_commit_landed, detect_tests_passed
+        _tests_passed = detect_tests_passed(_s19_tool_outputs)
+        _commit_landed = detect_commit_landed(_s19_tool_outputs)
+    except Exception:
+        pass
+
+    _outcome_ev = OutcomeSpan(
+        parent_id=turn.id,
+        purpose=turn_purpose.value,
+        model_id=getattr(adapter, "model_id", ""),
+        tool_names=tuple(sorted(_s19_tool_names)),
+        error_count=_s19_error_count,
+        prompt_preview=prompt[:120],
+        tests_passed=_tests_passed,
+        commit_landed=_commit_landed,
+        user_correction=False,  # retroactively updated by the next turn
+    )
+    rec.consume(_outcome_ev)
+
+    try:
+        from tern.memory.curate import OutcomeRecord, log_outcome
+        log_outcome(OutcomeRecord(
+            session_id=session_id,
+            ts=_outcome_ev.ts / 1e9,
+            purpose=_outcome_ev.purpose,
+            model_id=_outcome_ev.model_id,
+            tool_names=_outcome_ev.tool_names,
+            error_count=_outcome_ev.error_count,
+            prompt_preview=_outcome_ev.prompt_preview,
+            tests_passed=_outcome_ev.tests_passed,
+            commit_landed=_outcome_ev.commit_landed,
+            user_correction=_outcome_ev.user_correction,
+        ))
+    except Exception:
+        pass
 
     # Persist the assistant reply (if any) and advance the session head.
     response_msg = adapter.last_response_message  # type: ignore[attr-defined]
@@ -949,4 +1005,127 @@ def recall_add(
     sha_val = sha or uuid.uuid4().hex[:12]
     store.add(sha=sha_val, prompt=prompt, reply=reply, purpose=purpose, vector=vec)
     typer.secho(f"added turn {sha_val} to recall index (size now {store.size})", fg=typer.colors.GREEN)
+
+
+# ─── tern curate (S19) ───────────────────────────────────────────────────────
+
+curate_app = typer.Typer(name="curate", help="Review and apply curation proposals.", no_args_is_help=False)
+app.add_typer(curate_app)
+
+
+@curate_app.callback(invoke_without_command=True)
+def curate_cmd(
+    ctx: typer.Context,
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-accept all proposals (non-interactive)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show proposals without applying any."),
+) -> None:
+    """Interactive PR-style review of curation proposals.
+
+    Reads from curation_queue.jsonl + outcomes_log.jsonl, distills proposals,
+    presents each one for accept (y) / skip (n) / quit (q).
+    Accepted proposals are applied atomically to the relevant .tern/memory/*.md file.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    from tern.memory.curate import (
+        apply_proposal,
+        clear_proposals,
+        distill_proposals,
+    )
+    from tern.memory.repo_store import find_repo_root
+
+    repo = (cwd or Path.cwd()).resolve()
+    repo_root = find_repo_root(repo)
+    if repo_root is None:
+        typer.secho("no .git / .tern found — not inside a repo", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    # Clear stale proposals then regenerate fresh.
+    clear_proposals(repo_root)
+    proposals = distill_proposals(repo_root)
+
+    if not proposals:
+        typer.secho("no curation proposals — nothing to review", fg=typer.colors.BRIGHT_BLACK)
+        return
+
+    typer.secho(
+        f"\n{'─'*60}\n  {len(proposals)} curation proposal(s) for {repo_root}\n{'─'*60}",
+        fg=typer.colors.CYAN,
+    )
+
+    applied = 0
+    skipped = 0
+
+    for i, prop in enumerate(proposals, 1):
+        typer.secho(
+            f"\n[{i}/{len(proposals)}] {prop.target.upper()}  action={prop.action}",
+            fg=typer.colors.YELLOW,
+            bold=True,
+        )
+        typer.echo(f"  reason : {prop.reason}")
+        typer.echo(f"  content: {prop.content[:200]}")
+        if prop.action == "replace":
+            typer.echo(f"  replaces: {prop.old_text[:120]}")
+
+        if dry_run:
+            typer.secho("  [dry-run — skipping]", fg=typer.colors.BRIGHT_BLACK)
+            skipped += 1
+            continue
+
+        if yes:
+            answer = "y"
+        else:
+            answer = typer.prompt(
+                "  Accept? [y=yes / n=skip / q=quit]",
+                default="n",
+            ).strip().lower()
+
+        if answer == "q":
+            typer.secho("aborted", fg=typer.colors.RED)
+            break
+        elif answer == "y":
+            try:
+                apply_proposal(repo_root, prop)
+                typer.secho(f"  applied → {prop.target}", fg=typer.colors.GREEN)
+                applied += 1
+            except Exception as exc:
+                typer.secho(f"  error applying: {exc}", fg=typer.colors.RED, err=True)
+                skipped += 1
+        else:
+            typer.secho("  skipped", fg=typer.colors.BRIGHT_BLACK)
+            skipped += 1
+
+    typer.secho(
+        f"\ndone  applied={applied}  skipped={skipped}",
+        fg=typer.colors.CYAN,
+    )
+
+
+@curate_app.command("status")
+def curate_status(
+    cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
+) -> None:
+    """Show pending curation proposals without applying them."""
+    from tern.memory.curate import distill_proposals, read_outcomes, read_queue
+    from tern.memory.repo_store import find_repo_root
+
+    repo = (cwd or Path.cwd()).resolve()
+    repo_root = find_repo_root(repo)
+
+    queue_count = len(read_queue())
+    outcome_count = len(read_outcomes())
+    typer.echo(f"queue nudges  : {queue_count}")
+    typer.echo(f"outcome spans : {outcome_count}")
+
+    if repo_root is None:
+        typer.secho("not inside a repo — proposal distillation skipped", fg=typer.colors.YELLOW)
+        return
+
+    proposals = distill_proposals(repo_root)
+    typer.echo(f"proposals     : {len(proposals)}")
+    for p in proposals:
+        typer.echo(f"  [{p.target}] {p.action}: {p.content[:80]}")
+
 

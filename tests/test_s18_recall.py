@@ -1,14 +1,13 @@
 """Tests for S18 — KNN recall store (RecallStore, embed shim, banner)."""
 from __future__ import annotations
 
-import math
 import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from tern.recall.embed import _DIM, _ZERO, embed_dim
+from tern.recall.embed import _ZERO, embed_dim
 from tern.recall.store import RecallHit, RecallStore
 
 # ---------------------------------------------------------------------------
@@ -219,7 +218,6 @@ def test_render_recall_banner_nonempty(tmp_path: Path) -> None:
 
 def test_build_system_prompt_includes_recall_banner(tmp_path: Path) -> None:
     """build_system_prompt passes recall_hits through to banner."""
-    import os
 
     os.environ["TERN_HOME"] = str(tmp_path / "tern_home")
     try:
@@ -250,7 +248,6 @@ def test_build_system_prompt_includes_recall_banner(tmp_path: Path) -> None:
 
 
 def test_build_system_prompt_no_recall_hits_no_banner(tmp_path: Path) -> None:
-    import os
 
     os.environ["TERN_HOME"] = str(tmp_path / "tern_home")
     try:
@@ -269,7 +266,6 @@ def test_build_system_prompt_no_recall_hits_no_banner(tmp_path: Path) -> None:
 
 def test_banner_order_with_recall(tmp_path: Path) -> None:
     """Recall banner appears between REPO MEMORY and USER PROFILE."""
-    import os
 
     tern_home = tmp_path / "tern_home"
     os.environ["TERN_HOME"] = str(tern_home)

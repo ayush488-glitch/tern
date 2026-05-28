@@ -83,3 +83,4 @@ Symptom: HTML transcript present, "notes" section empty. Root cause: model emits
 ## [2026-05-28] decision | ADR-0012 long-running build hardening; S21 inserted, vision/browser/walkthrough push to S22-S24
 ## [2026-05-28] session-end | S17 repo-scoped memory tier (Layer A)
 ## [2026-05-29] session-end | S18 cognitive router + KNN recall (ADR-0011 subsystems 1+2)
+## [2026-05-29] session-end | S19 curator subsystem (ADR-0011 subsystem 3)

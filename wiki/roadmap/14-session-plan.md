@@ -37,7 +37,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S16 model breadth (nova, openai) + cost router populated | ✅ done | 2026-05-28 |
 | | S17 repo-scoped memory tier (Layer A — ADR-0011 substrate) | ✅ done | 2026-05-28 |
 | | S18 cognitive router + KNN recall (ADR-0011 subsystems 1+2) | ✅ done | 2026-05-29 |
-| **▶** | **S19 curator with outcome priors (ADR-0011 subsystem 3)** | **next** | — |
+| | S19 curator subsystem (ADR-0011 subsystem 3) | ✅ done | 2026-05-29 |
+| **▶** | **S20 StackOverflow lookup on error spans** | **next** | — |
 | | S20 StackOverflow lookup tool (ADR-0011 §S20) | — | — |
 | | S21 long-running build hardening (ADR-0012 — six primitives) | — | — |
 | | S22 vision (image input + screenshot tool) | — | — |

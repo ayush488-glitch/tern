@@ -178,6 +178,39 @@ class RecallQueried(_EventBase):
     kind: Literal["recall_queried"] = "recall_queried"
 
 
+# ─── outcome spans (S19) ──────────────────────────────────────────────────────
+
+@dataclass(frozen=True, slots=True)
+class OutcomeSpan(_EventBase):
+    """Fired at the end of a turn to record its ground-truth outcome.
+
+    This is the training signal for the S19 curator's Bayesian priors.
+
+    Fields:
+        tests_passed    — True/False if we detected a pytest/test run in the turn;
+                          None if no test run was detected.
+        commit_landed   — True if `git commit` succeeded in the turn; None if not run.
+        user_correction — True if the user's *next* prompt looks like a correction
+                          (e.g. "no, actually...", "that's wrong", "undo"). Set
+                          retroactively by the prior-turn recorder; False by default
+                          (no look-ahead at emit time).
+        purpose         — TurnPurpose.value string e.g. "code".
+        model_id        — model used for this turn.
+        tool_names      — sorted tuple of tool names called.
+        error_count     — number of ToolReturned events with ok=False.
+        prompt_preview  — first 120 chars of user prompt.
+    """
+    tests_passed: bool | None = None
+    commit_landed: bool | None = None
+    user_correction: bool = False
+    purpose: str = ""
+    model_id: str = ""
+    tool_names: tuple[str, ...] = ()
+    error_count: int = 0
+    prompt_preview: str = ""
+    kind: Literal["outcome_span"] = "outcome_span"
+
+
 # ─── union & helpers ──────────────────────────────────────────────────────────
 
 TurnEvent = (
@@ -195,6 +228,7 @@ TurnEvent = (
     | ReflectionTriggered
     | RoutingClassified
     | RecallQueried
+    | OutcomeSpan
 )
 
 

@@ -4,8 +4,7 @@ from __future__ import annotations
 import pytest
 
 from tern.core.turn import TurnPurpose
-from tern.router.classify import Method, classify
-
+from tern.router.classify import classify
 
 # ---------------------------------------------------------------------------
 # classify() — regex pass (no LLM, llm_fallback=False)
@@ -68,7 +67,7 @@ def test_route_arch_gives_opus() -> None:
 def test_route_lint_gives_haiku() -> None:
     from tern.router import route
 
-    purpose, model_id, method = route("run ruff check on the codebase", mode="auto", llm_fallback=False)
+    purpose, model_id, _method = route("run ruff check on the codebase", mode="auto", llm_fallback=False)
     assert purpose == TurnPurpose.LINT
     assert "haiku" in model_id.lower()
 
@@ -76,7 +75,7 @@ def test_route_lint_gives_haiku() -> None:
 def test_route_boilerplate_gives_nova() -> None:
     from tern.router import route
 
-    purpose, model_id, method = route("scaffold CRUD boilerplate for Order", mode="auto", llm_fallback=False)
+    purpose, model_id, _method = route("scaffold CRUD boilerplate for Order", mode="auto", llm_fallback=False)
     assert purpose == TurnPurpose.BOILERPLATE
     assert "nova" in model_id.lower()
 
@@ -84,7 +83,7 @@ def test_route_boilerplate_gives_nova() -> None:
 def test_route_code_gives_sonnet() -> None:
     from tern.router import route
 
-    purpose, model_id, method = route("implement the retry logic", mode="auto", llm_fallback=False)
+    purpose, model_id, _method = route("implement the retry logic", mode="auto", llm_fallback=False)
     assert purpose == TurnPurpose.CODE
     assert "sonnet" in model_id.lower()
 
@@ -92,7 +91,7 @@ def test_route_code_gives_sonnet() -> None:
 def test_route_default_mode_passthrough() -> None:
     from tern.router import route
 
-    purpose, model_id, method = route("architect everything", mode="code", llm_fallback=False)
+    purpose, _model_id, method = route("architect everything", mode="code", llm_fallback=False)
     assert purpose == TurnPurpose.CODE
     assert method == "default"
 
