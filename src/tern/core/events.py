@@ -211,6 +211,20 @@ class OutcomeSpan(_EventBase):
     kind: Literal["outcome_span"] = "outcome_span"
 
 
+@dataclass(frozen=True, slots=True)
+class SOLookupCompleted(_EventBase):
+    """Fired after a StackOverflow lookup triggered by error_count >= 1.
+
+    Carries the query used and how many hits were returned.
+    The actual hits are injected into the next turn's system prompt
+    via build_so_banner(); they do not live in the event.
+    """
+    query: str = ""
+    n_hits: int = 0
+    error_in_turn: str = ""   # first 120 chars of the error that triggered the lookup
+    kind: Literal["so_lookup_completed"] = "so_lookup_completed"
+
+
 # ─── union & helpers ──────────────────────────────────────────────────────────
 
 TurnEvent = (
@@ -229,6 +243,7 @@ TurnEvent = (
     | RoutingClassified
     | RecallQueried
     | OutcomeSpan
+    | SOLookupCompleted
 )
 
 

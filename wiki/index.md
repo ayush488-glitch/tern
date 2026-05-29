@@ -73,6 +73,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S17-repo-scoped-memory.md](sessions/S17-repo-scoped-memory.md) — repo-scoped memory tier (Layer A): `repo_store.py`, `render_all_banners_with_repo`, `scope="repo"` on MemoryTool. 327/327 green, +31 tests.
 - [sessions/S18-cognitive-router-knn-recall.md](sessions/S18-cognitive-router-knn-recall.md) — cognitive router (regex-first + Nova Micro fallback) + KNN recall (Titan v2 1024-dim, numpy store). 368/368 green, +41 tests.
 - [sessions/S19-curator-subsystem.md](sessions/S19-curator-subsystem.md) — curator: OutcomeSpan event, outcome logger, proposal distiller, tern curate CLI. 396/396 green, +28 tests.
+- [sessions/S20-stackoverflow-lookup.md](sessions/S20-stackoverflow-lookup.md) — SO API v2.3 client, banner injection, hit persistence, SOLookupCompleted event. 422/422 green, +26 tests.
 
 ---
 

@@ -227,10 +227,23 @@ def run(
     except Exception:
         pass  # recall failure must never kill a turn
 
+    # ---- S20: load SO hits from previous turn (if any) -------------------
+    _so_banner_text: str = ""
+    try:
+        from tern.lookup.inject import build_so_banner
+        from tern.lookup.store import load_and_clear_so_hits
+
+        _prev_so_hits = load_and_clear_so_hits()
+        _so_banner_text = build_so_banner(_prev_so_hits)
+    except Exception:
+        pass  # SO banner failure must never kill a turn
+
     # ---- D2 / S11: skills runtime --------------------------------------
     skills = load_skills(cwd)
     active = select_active(prompt, skills)
     sys_text = build_system_prompt(skills, active, cwd=cwd or Path.cwd(), recall_hits=recall_hits or None)
+    if _so_banner_text:
+        sys_text = f"{sys_text}\n\n{_so_banner_text}"
     sys_msg = (
         CanonicalMessage(
             role="system",
@@ -398,6 +411,37 @@ def run(
         ))
     except Exception:
         pass
+
+    # ---- S20: StackOverflow lookup on error spans -----------------------
+    # When the turn had tool errors, search SO and persist hits for the next turn.
+    if _s19_error_count >= 1:
+        try:
+            from tern.core.events import SOLookupCompleted
+            from tern.lookup import search
+            from tern.lookup.inject import build_so_banner
+            from tern.lookup.search import extract_error_query
+            from tern.lookup.store import save_so_hits
+
+            _so_query = extract_error_query(_s19_tool_outputs)
+            if _so_query:
+                _so_hits = search(_so_query, n=3, _retry=1)
+                _so_banner = build_so_banner(_so_hits)
+                save_so_hits(_so_hits)
+                _so_ev = SOLookupCompleted(
+                    parent_id=turn.id,
+                    query=_so_query[:120],
+                    n_hits=len(_so_hits),
+                    error_in_turn=_so_query[:120],
+                )
+                rec.consume(_so_ev)
+                if _so_hits:
+                    typer.secho(
+                        f"so: {len(_so_hits)} hit(s) for '{_so_query[:60]}…' — injected next turn",
+                        fg=typer.colors.BRIGHT_CYAN,
+                        err=True,
+                    )
+        except Exception:
+            pass  # SO lookup failure must never kill or slow down a turn
 
     # Persist the assistant reply (if any) and advance the session head.
     response_msg = adapter.last_response_message  # type: ignore[attr-defined]

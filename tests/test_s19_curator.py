@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
 def _fake_repo(tmp_path: Path) -> Path:
@@ -41,8 +40,9 @@ def test_outcome_span_defaults() -> None:
 
 def test_outcome_span_in_turn_event_union() -> None:
     """OutcomeSpan must be part of TurnEvent so the recorder accepts it."""
-    from tern.core.events import OutcomeSpan, TurnEvent
     import typing
+
+    from tern.core.events import OutcomeSpan, TurnEvent
 
     args = typing.get_args(TurnEvent)
     assert OutcomeSpan in args
