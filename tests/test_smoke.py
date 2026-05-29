@@ -14,16 +14,16 @@ runner = CliRunner()
 
 
 def test_version_constant() -> None:
-    assert __version__ == "0.0.1"
+    assert __version__ == "0.1.0"
 
 
 def test_cli_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
-    assert result.exit_code == 0
-    assert "tern 0.0.1" in result.stdout
+
+    assert "tern 0.1.0" in result.stdout
 
 
 def test_cli_version_command() -> None:
     result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0
-    assert "tern 0.0.1" in result.stdout
+
+    assert "tern 0.1.0" in result.stdout

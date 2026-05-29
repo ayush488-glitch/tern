@@ -60,6 +60,11 @@ from tern.tools import (
 )
 from tern.tools.native import (
     BashTool,
+    BrowserClickTool,
+    BrowserNavigateTool,
+    BrowserSnapshotTool,
+    BrowserTypeTool,
+    BrowserVisionTool,
     EditBlockTool,
     GlobTool,
     GrepTool,
@@ -68,8 +73,11 @@ from tern.tools.native import (
     ReadFileTool,
     SkillManageTool,
     WebFetchTool,
+    WebSearchTool,
     WriteFileTool,
 )
+from tern.tools.native.proc import ProcTool
+from tern.tools.native.screenshot import ScreenshotTool
 from tern.tools.permissions import Prompter
 
 # ---------------------------------------------------------------------------
@@ -245,14 +253,42 @@ class _StreamRenderer:
 
 
 _HELP = """\
-[bold]tern chat[/bold] — inline REPL.
+[bold]tern chat[/bold] — inline REPL  (v0.1.0)
 
   type a prompt and press Enter to send.
   Esc, Enter inserts a newline (multi-line input).
   Ctrl+C cancels the current turn; press it twice to exit.
-  /help    show this
-  /quit    exit
+
+[bold]Slash commands:[/bold]
+  /help              show this
+  /quit  /exit       exit the session
+  /clear             clear conversation history (keeps session id)
+  /model [id]        show current model or switch model for next turns
+  /mode  [mode]      show or set permission mode (default | safe | yolo)
+  /tools             list all registered tools
+  /cost              show cumulative session cost so far
 """
+
+
+# ---------------------------------------------------------------------------
+# slash command helpers
+# ---------------------------------------------------------------------------
+
+
+def _cmd_tools(registry: Registry, console: Console, mode: str) -> None:
+    rows: list[tuple[str, str]] = []
+    for t in sorted(registry.visible_to_model(mode=mode), key=lambda x: x.name):
+        ann = getattr(t, "annotations", None)
+        flags = ""
+        if ann is not None:
+            if getattr(ann, "destructive", False):
+                flags += " [yellow]destructive[/yellow]"
+            if getattr(ann, "open_world", False):
+                flags += " [dim]net[/dim]"
+        rows.append((t.name, (t.description or "")[:60] + flags))
+    console.print(f"[bold]{len(rows)} tools visible in mode={mode!r}:[/bold]")
+    for name, desc in rows:
+        console.print(f"  [cyan]{name:<25}[/cyan] {desc}")
 
 
 def run_chat(
@@ -275,8 +311,16 @@ def run_chat(
         BashTool(),
         NotesAppendTool(),
         WebFetchTool(),
+        WebSearchTool(),
         MemoryTool(),
         SkillManageTool(),
+        ScreenshotTool(),
+        ProcTool(),
+        BrowserNavigateTool(),
+        BrowserSnapshotTool(),
+        BrowserClickTool(),
+        BrowserTypeTool(),
+        BrowserVisionTool(),
     ])
     gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
 
@@ -309,6 +353,7 @@ def run_chat(
     sink = NDJSONSpanSink(session_id=session_id, cwd=repo)
     rec = SpanRecorder(sink=sink)
 
+    _override_model: str | None = None  # set by /model <id>
     pt_session: PromptSession[str] = PromptSession(history=InMemoryHistory())
 
     while True:
@@ -320,11 +365,56 @@ def run_chat(
             break
         if not user_text:
             continue
-        if user_text in {"/quit", "/exit"}:
-            console.print("[dim]bye.[/dim]")
-            break
-        if user_text == "/help":
-            console.print(_HELP)
+        # ---- slash commands ------------------------------------------------
+        if user_text.startswith("/"):
+            parts = user_text.split(None, 1)
+            cmd = parts[0].lower()
+            arg = parts[1].strip() if len(parts) > 1 else ""
+
+            if cmd in {"/quit", "/exit"}:
+                console.print("[dim]bye.[/dim]")
+                break
+            elif cmd == "/help":
+                console.print(_HELP)
+            elif cmd == "/clear":
+                history.clear()
+                turn_idx = 0
+                parent_sha = None
+                console.print("[dim]history cleared.[/dim]")
+            elif cmd == "/cost":
+                console.print(
+                    f"[dim]session cost so far: ${rec.total_cost_usd():.4f}[/dim]"
+                )
+            elif cmd == "/tools":
+                _cmd_tools(registry, console, mode)
+            elif cmd == "/mode":
+                valid_modes = {"default", "safe", "yolo"}
+                if arg in valid_modes:
+                    mode = arg
+                    # Rebuild gate for new mode
+                    gate = PermissionGate(prompter=_build_inline_prompter(console, repo))
+                    console.print(f"[dim]mode → {mode}[/dim]")
+                elif arg:
+                    console.print(
+                        f"[red]unknown mode {arg!r}. expected: {', '.join(sorted(valid_modes))}[/red]"
+                    )
+                else:
+                    console.print(f"[dim]current mode: {mode}[/dim]")
+            elif cmd == "/model":
+                if arg:
+                    from tern.core.routing import adapter_for_model
+                    try:
+                        _new_adapter = adapter_for_model(arg)
+                        _override_model = arg
+                        console.print(
+                            f"[dim]model override → {arg} (takes effect next turn)[/dim]"
+                        )
+                    except ValueError as exc:
+                        console.print(f"[red]{exc}[/red]")
+                else:
+                    console.print(f"[dim]current model: {_override_model or 'auto (cost router)'}[/dim]")
+            else:
+                console.print(f"[red]unknown command {cmd!r}. /help for commands.[/red]")
             continue
 
         user_msg = CanonicalMessage(
@@ -345,7 +435,12 @@ def run_chat(
             routing_purpose=TurnPurpose.CODE.value,
         )
         update_session_head(session_id, parent_sha, cwd=repo)
-        adapter = select_adapter(TurnPurpose.CODE)
+        # Honour /model override if set, else cost-route per turn.
+        if _override_model:
+            from tern.core.routing import adapter_for_model
+            adapter = adapter_for_model(_override_model)
+        else:
+            adapter = select_adapter(TurnPurpose.CODE)
 
         # ---- D2 / S11: skills runtime ----------------------------------
         from tern.skills import build_system_prompt, load_skills, select_active

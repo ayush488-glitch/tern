@@ -21,7 +21,14 @@ from tern.core.canonical import (
     Metadata,
     TextBlock,
 )
-from tern.core.events import LLMResponded, OutcomeSpan, RecallQueried, RoutingClassified, TurnEvent
+from tern.core.events import (
+    LLMResponded,
+    LLMTextDelta,
+    OutcomeSpan,
+    RecallQueried,
+    RoutingClassified,
+    TurnEvent,
+)
 from tern.core.loop import run_turn
 from tern.core.routing import select_adapter
 from tern.core.turn import Turn, TurnPurpose
@@ -128,11 +135,18 @@ def run(
     ),
     max_tokens: int = typer.Option(1024, "--max-tokens", help="Response cap."),
     cwd: Path | None = typer.Option(None, "--cwd", help="Project dir (default: current)."),
+    print_mode: bool = typer.Option(
+        False,
+        "--print",
+        help="Plain-text output: stream assistant text to stdout, suppress span/cost UI.",
+    ),
 ) -> None:
     """One-shot turn: send PROMPT, print the assistant reply.
 
     Live Bedrock call. Requires `TERN_LIVE=1` to actually hit the network —
     otherwise we refuse and tell you why. Spans flow into .tern/spans/.
+
+    With --print: raw assistant text only (no Rich), suitable for piping.
     """
     if os.environ.get("TERN_LIVE") != "1":
         typer.secho(
@@ -346,7 +360,12 @@ def run(
                 )
             async for ev in run_turn(turn, adapter):
                 rec.consume(ev)
-                _print_event_one_liner(ev, console)
+                if print_mode:
+                    # --print: stream raw text to stdout, suppress all UI chrome
+                    if isinstance(ev, LLMTextDelta):
+                        typer.echo(ev.text, nl=False)
+                else:
+                    _print_event_one_liner(ev, console)
                 # Accumulate tool signal for S19 outcome span
                 if ev.__class__.__name__ == "ToolCalled":
                     _s19_tool_names.add(getattr(ev, "tool_name", ""))
@@ -358,6 +377,8 @@ def run(
                         _s19_tool_outputs.append(str(err_str))
 
     asyncio.run(_go())
+    if print_mode:
+        typer.echo("")  # trailing newline after streamed text
 
     # ---- S18: emit routing + recall span metadata -----------------------
     # Fire RoutingClassified so the span tree records which method + model chose.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tern"
-version = "0.0.1"
+version = "0.1.0"
 description = "A Python CLI coding agent — per-turn cost routing, skills first-class, replay/branch, live HTML notes, browser-use, MCP."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "Ayush Singh", email = "ayush@antern.dev" }]
 keywords = ["coding-agent", "llm", "cli", "claude", "bedrock"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
@@ -30,15 +30,22 @@ dependencies = [
   "prompt_toolkit>=3.0",
   "mcp>=1.0",
   "numpy>=1.26",
+  "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
+browser = [
+  "playwright>=1.44",
+]
 dev = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23",
   "ruff>=0.5",
   "boto3-stubs[bedrock-runtime]>=1.34",
   "mypy>=1.10",
+]
+all = [
+  "tern[browser]",
 ]
 
 [project.scripts]

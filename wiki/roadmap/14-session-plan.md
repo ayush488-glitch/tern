@@ -42,7 +42,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S21 long-running build hardening (ADR-0012) | ✅ done | 2026-05-29 |
 | | S22 vision: ImageBlock + screenshot tool | ✅ done | 2026-05-29 |
 | | S23 real search + browser navigate/click/type | ✅ done | 2026-05-29 |
-| **▶** | **S24 M14 polish + pipx + walkthrough** | **next** | — |
+| | S24 M14 polish + pipx v0.1.0 + walkthrough | ✅ done | 2026-05-29 |
+| **🎉** | **v0.1.0 shipped — all six differentiators live** | **done** | 2026-05-29 |
 
 **Sequencing is locked by ADR-0011 + ADR-0012.** The table above supersedes the
 original plan. S17→S20 are the moat (cognitive routing + memory + curation). S21
