@@ -52,6 +52,8 @@ from tern.core.events import (
 )
 from tern.core.provider import ProviderAdapter
 from tern.core.turn import Turn
+from tern.loop.read_cache import reset_session_cache
+from tern.loop.summarize import compress_tool_results, should_summarize
 from tern.tools import (
     ApprovalDecision,
     PermissionGate,
@@ -78,8 +80,14 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
 
     messages: tuple[CanonicalMessage, ...] = turn.messages
     completion_reason: str = "done"
+    reset_session_cache()  # S21: clear stale read-cache entries at turn start
 
     for _step in range(turn.max_steps):
+        # S21 §1: working-set summarizer — compress older tool results if the
+        # turn is getting long to prevent context overflow.
+        if should_summarize(messages):
+            messages, _n = compress_tool_results(messages)
+
         requested = LLMRequested(
             parent_id=started.id,
             model_id=adapter.model_id,

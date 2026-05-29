@@ -15,7 +15,7 @@ from typing import Any, Final
 
 _FILENAME: Final = "config.json"
 
-_VALID_KEYS: Final = frozenset({"default_model"})
+_VALID_KEYS: Final = frozenset({"default_model", "budget.session", "budget.turn"})
 
 
 def _config_path(home: Path | None = None) -> Path:

@@ -8,6 +8,11 @@ Destructive (overwrites). Sandboxed (parents must resolve under repo_root).
 Refuses to overwrite an existing file unless `overwrite=True` is passed —
 keeps "create new" and "blow away existing" as distinct intents the gate can
 weigh independently.
+
+S21: diff preview. When a file exists and overwrite=True, the tool embeds a
+unified diff in ToolResult.metadata["pending_diff"] before writing. loop.py
+picks this up and emits DiffPreviewEvent; in default mode it prompts the user.
+In yolo mode the diff is still computed and logged but no prompt is shown.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tern.loop.diff_preview import line_count, unified_diff
 from tern.tools.protocol import (
     Tool,
     ToolAnnotations,
@@ -24,6 +30,9 @@ from tern.tools.protocol import (
 )
 
 _MAX_BYTES = 1_000_000  # 1 MiB; bigger writes should chunk via edit_block
+
+# In default mode, show diff when changed_lines > this threshold.
+_DIFF_THRESHOLD_LINES = 30
 
 
 class WriteFileArgs(BaseModel):
@@ -87,16 +96,33 @@ class WriteFileTool:
                 ),
             )
 
+        # ---- S21 diff preview (overwrite only) ------------------------------
+        pending_diff: str | None = None
+        diff_lines = 0
+        if existed and args.overwrite:
+            try:
+                old_content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                old_content = ""
+            pending_diff = unified_diff(old_content, args.content, str(path))
+            diff_lines = line_count(pending_diff) if pending_diff else 0
+
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(args.content, encoding="utf-8")
+
+        meta: dict[str, object] = {
+            "path": str(path),
+            "bytes": len(encoded),
+            "created": not existed,
+        }
+        if pending_diff is not None:
+            meta["pending_diff"] = pending_diff
+            meta["diff_lines"] = diff_lines
+
         return ToolResult(
             ok=True,
             content=f"{'overwrote' if existed else 'wrote'} {path} ({len(encoded)} bytes)",
-            metadata={
-                "path": str(path),
-                "bytes": len(encoded),
-                "created": not existed,
-            },
+            metadata=meta,
         )
 
 

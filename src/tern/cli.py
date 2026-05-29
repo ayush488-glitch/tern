@@ -157,6 +157,7 @@ def run(
         WebFetchTool,
         WriteFileTool,
     )
+    from tern.tools.native.proc import ProcTool
 
     purpose_key = purpose.lower()
     if purpose_key not in _VALID_PURPOSES:
@@ -267,6 +268,7 @@ def run(
             WebFetchTool(),
             MemoryTool(),
             SkillManageTool(),
+            ProcTool(),
         ]
     )
     gate = PermissionGate()  # default deny on destructive in default mode

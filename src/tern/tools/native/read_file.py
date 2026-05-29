@@ -11,6 +11,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tern.loop.read_cache import get_session_cache
 from tern.tools.protocol import (
     Tool,
     ToolAnnotations,
@@ -54,6 +55,29 @@ class ReadFileTool:
             return ToolResult(ok=False, content="", error=f"no such file: {path}")
         if path.is_dir():
             return ToolResult(ok=False, content="", error=f"is a directory: {path}")
+
+        # ---- S21 read cache: skip disk read if content unchanged --------------
+        # Only cache whole-file reads (offset=1, limit=_MAX_LINES) — partial
+        # reads are cheap and usually unique, caching them adds complexity.
+        is_full_read = args.offset == 1 and args.limit == _MAX_LINES
+        if is_full_read:
+            cache = get_session_cache()
+            entry = cache.get(path)
+            if entry is not None:
+                # Slice the cached numbered-lines body to honour offset/limit.
+                return ToolResult(
+                    ok=True,
+                    content=entry.content,
+                    metadata={
+                        "path": str(path),
+                        "total_lines": entry.total_lines,
+                        "returned": entry.total_lines,
+                        "cached": True,
+                        "sha256": entry.sha256,
+                        "first_read_turn": entry.turn_idx,
+                    },
+                )
+
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -66,15 +90,27 @@ class ReadFileTool:
         end = start + args.limit
         slice_ = lines[start:end]
         body = "\n".join(f"{start + i + 1}|{line}" for i, line in enumerate(slice_))
-        return ToolResult(
-            ok=True,
-            content=body,
-            metadata={
+
+        # Store full-file read in cache for future hits.
+        if is_full_read:
+            sha = get_session_cache().put(
+                path, body, ctx.turn_idx, len(lines)
+            )
+            metadata: dict[str, object] = {
                 "path": str(path),
                 "total_lines": len(lines),
                 "returned": len(slice_),
-            },
-        )
+                "cached": False,
+                "sha256": sha,
+            }
+        else:
+            metadata = {
+                "path": str(path),
+                "total_lines": len(lines),
+                "returned": len(slice_),
+            }
+
+        return ToolResult(ok=True, content=body, metadata=metadata)
 
 
 __all__ = ["Path", "ReadFileArgs", "ReadFileTool", "Tool"]

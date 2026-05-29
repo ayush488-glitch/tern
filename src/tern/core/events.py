@@ -225,6 +225,17 @@ class SOLookupCompleted(_EventBase):
     kind: Literal["so_lookup_completed"] = "so_lookup_completed"
 
 
+@dataclass(frozen=True, slots=True)
+class DiffPreviewEvent(_EventBase):
+    """Emitted before a destructive write applies (S21 / ADR-0012 §5)."""
+
+    path: str = ""
+    diff: str = ""
+    changed_lines: int = 0
+    auto_applied: bool = False
+    kind: Literal["diff_preview"] = "diff_preview"
+
+
 # ─── union & helpers ──────────────────────────────────────────────────────────
 
 TurnEvent = (
@@ -244,6 +255,7 @@ TurnEvent = (
     | RecallQueried
     | OutcomeSpan
     | SOLookupCompleted
+    | DiffPreviewEvent
 )
 
 
