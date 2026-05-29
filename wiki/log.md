@@ -86,3 +86,4 @@ Symptom: HTML transcript present, "notes" section empty. Root cause: model emits
 ## [2026-05-29] session-end | S19 curator subsystem (ADR-0011 subsystem 3)
 ## [2026-05-29] session-end | S20 StackOverflow error lookup (ADR-0011 subsystem 4)
 ## [2026-05-29] session-end | S21 long-running build hardening (ADR-0012)
+## [2026-05-29] session-end | S22 vision screenshot

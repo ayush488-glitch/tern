@@ -158,6 +158,7 @@ def run(
         WriteFileTool,
     )
     from tern.tools.native.proc import ProcTool
+    from tern.tools.native.screenshot import ScreenshotTool
 
     purpose_key = purpose.lower()
     if purpose_key not in _VALID_PURPOSES:
@@ -269,6 +270,7 @@ def run(
             MemoryTool(),
             SkillManageTool(),
             ProcTool(),
+            ScreenshotTool(),
         ]
     )
     gate = PermissionGate()  # default deny on destructive in default mode

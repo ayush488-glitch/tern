@@ -67,14 +67,16 @@ class ToolResult:
     """One-shot return shape. ADR-0003 §ToolResult-shape.
 
     `content` is what the model sees; `metadata` is for spans / observability;
-    `artifacts` will carry screenshots and structured data once browser-use
-    lands in S13.
+    `image_blocks` carries base64 images (S22 vision — screenshot tool output).
+    Images are injected as a follow-up user-role message so both Anthropic and
+    Nova adapters can handle them without changing the tool_result wire shape.
     """
 
     ok: bool
     content: str
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    image_blocks: tuple[Any, ...] = field(default_factory=tuple)  # tuple[ImageBlock, ...]
 
 
 @runtime_checkable

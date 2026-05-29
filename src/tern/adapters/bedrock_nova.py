@@ -35,6 +35,7 @@ from tern.core.canonical import (
     CanonicalMessage,
     Capabilities,
     Cost,
+    ImageBlock,
     Metadata,
     ProviderResponse,
     TextBlock,
@@ -127,10 +128,21 @@ class BedrockNovaAdapter:
                         "toolResult": {
                             "toolUseId": b.call_id,
                             "content": payload,
-                            **({"status": "error"} if not b.ok else {}),
+                            **({("status"): "error"} if not b.ok else {}),
                         }
                     })
-                # ImageBlock support deferred to S17 vision wiring.
+                elif isinstance(b, ImageBlock):
+                    # S22 vision: Nova Converse image block.
+                    # data_b64 is base64-encoded; boto3 needs raw bytes.
+                    import base64
+                    raw = base64.b64decode(b.data_b64)
+                    fmt = b.media_type.split("/")[-1]  # "image/png" -> "png"
+                    content_blocks.append({
+                        "image": {
+                            "format": fmt,
+                            "source": {"bytes": raw},
+                        }
+                    })
 
             if content_blocks:
                 wire_messages.append({"role": wire_role, "content": content_blocks})

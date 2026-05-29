@@ -30,6 +30,7 @@ from pydantic import ValidationError
 from tern.core.canonical import (
     SCHEMA_VERSION,
     CanonicalMessage,
+    ImageBlock,
     Metadata,
     TextBlock,
     ToolCallBlock,
@@ -155,6 +156,7 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
 
         # ---- execute every tool block, accumulate tool_result blocks ------
         tool_result_blocks: list[ToolResultBlock] = []
+        pending_images: list[ImageBlock] = []  # S22: images to inject next step
         ctx = ToolContext(
             repo_root=turn.repo_root,
             session_id=turn.session_id,
@@ -244,6 +246,10 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
                     error=result.error,
                 )
             )
+            # S22: collect any image blocks for post-step injection
+            for img in result.image_blocks:
+                if isinstance(img, ImageBlock):
+                    pending_images.append(img)
 
         # Append tool results as a single role="tool" message and keep going.
         messages = (
@@ -256,6 +262,22 @@ async def run_turn(turn: Turn, adapter: ProviderAdapter) -> AsyncIterator[TurnEv
                 ),
             ),
         )
+
+        # S22 vision: if any tool returned image_blocks, inject them as a
+        # follow-up user-role message so the model can see them next step.
+        # Both adapters handle ImageBlock in user-role content.
+        if pending_images:
+            label = TextBlock(text=f"[Vision output from tool — {len(pending_images)} image(s)]")
+            messages = (
+                *messages,
+                CanonicalMessage(
+                    role="user",
+                    content=(label, *pending_images),
+                    metadata=Metadata(
+                        schema_version=SCHEMA_VERSION, ts=0.0, provenance="vision"
+                    ),
+                ),
+            )
 
         if denied:
             completion_reason = "permission_denied"

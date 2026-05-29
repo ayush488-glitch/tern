@@ -40,8 +40,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S19 curator subsystem (ADR-0011 subsystem 3) | ✅ done | 2026-05-29 |
 | | S20 StackOverflow error lookup (ADR-0011 subsystem 4) | ✅ done | 2026-05-29 |
 | | S21 long-running build hardening (ADR-0012) | ✅ done | 2026-05-29 |
-| **▶** | **S22 vision (ImageBlock + screenshot tool)** | **next** | — |
-| | S22 vision (image input + screenshot tool) | — | — |
+| | S22 vision: ImageBlock + screenshot tool | ✅ done | 2026-05-29 |
+| **▶** | **S23 — next per ADR-0011 / roadmap** | **next** | — |
 | | S23 real search + browser navigate/click/type | — | — |
 | | S24 M14 polish + pipx + walkthrough | — | — |
 
