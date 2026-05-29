@@ -41,9 +41,8 @@ Each session captures `wiki/sessions/SNN-<topic>.md` while it's fresh.
 | | S20 StackOverflow error lookup (ADR-0011 subsystem 4) | ✅ done | 2026-05-29 |
 | | S21 long-running build hardening (ADR-0012) | ✅ done | 2026-05-29 |
 | | S22 vision: ImageBlock + screenshot tool | ✅ done | 2026-05-29 |
-| **▶** | **S23 — next per ADR-0011 / roadmap** | **next** | — |
-| | S23 real search + browser navigate/click/type | — | — |
-| | S24 M14 polish + pipx + walkthrough | — | — |
+| | S23 real search + browser navigate/click/type | ✅ done | 2026-05-29 |
+| **▶** | **S24 M14 polish + pipx + walkthrough** | **next** | — |
 
 **Sequencing is locked by ADR-0011 + ADR-0012.** The table above supersedes the
 original plan. S17→S20 are the moat (cognitive routing + memory + curation). S21

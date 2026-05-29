@@ -15,7 +15,7 @@ from typing import Any, Final
 
 _FILENAME: Final = "config.json"
 
-_VALID_KEYS: Final = frozenset({"default_model", "budget.session", "budget.turn"})
+_VALID_KEYS: Final = frozenset({"default_model", "budget.session", "budget.turn", "search.tavily_api_key"})
 
 
 def _config_path(home: Path | None = None) -> Path:

@@ -76,6 +76,7 @@ Update on every ingest, every filed query, every session end, every decision.
 - [sessions/S20-stackoverflow-lookup.md](sessions/S20-stackoverflow-lookup.md) — SO error lookup: search.py, inject.py, store.py, SOLookupCompleted event. 422/422 green, +26 tests.
 - [sessions/S21-long-running-build-hardening.md](sessions/S21-long-running-build-hardening.md) — 6 hardening primitives: summarize, delegate, read_cache, diff_preview, budget, proc tool. 451/451 green, +29 tests.
 - [sessions/S22-vision-screenshot.md](sessions/S22-vision-screenshot.md) — ImageBlock in ToolResult, loop image injection, Nova adapter vision wiring, screenshot tool. 464/464 green, +13 tests.
+- [sessions/S23-search-browser-tools.md](sessions/S23-search-browser-tools.md) — web_search (Tavily+DDG fallback), 5 Playwright browser tools, singleton BrowserSession, S22 image injection reuse. 490/490 green, +26 tests.
 
 ---
 

@@ -147,6 +147,11 @@ def run(
     from tern.tools.mcp import MCPManager, load_mcp_config
     from tern.tools.native import (
         BashTool,
+        BrowserClickTool,
+        BrowserNavigateTool,
+        BrowserSnapshotTool,
+        BrowserTypeTool,
+        BrowserVisionTool,
         EditBlockTool,
         GlobTool,
         GrepTool,
@@ -155,6 +160,7 @@ def run(
         ReadFileTool,
         SkillManageTool,
         WebFetchTool,
+        WebSearchTool,
         WriteFileTool,
     )
     from tern.tools.native.proc import ProcTool
@@ -271,6 +277,12 @@ def run(
             SkillManageTool(),
             ProcTool(),
             ScreenshotTool(),
+            WebSearchTool(),
+            BrowserNavigateTool(),
+            BrowserSnapshotTool(),
+            BrowserClickTool(),
+            BrowserTypeTool(),
+            BrowserVisionTool(),
         ]
     )
     gate = PermissionGate()  # default deny on destructive in default mode
